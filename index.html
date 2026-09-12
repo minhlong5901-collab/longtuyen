@@ -211,10 +211,31 @@
   .photo-cap{ font-size:.82rem; margin-top:8px; color:var(--plum); }
   .photo-meta{ font-size:.7rem; color:var(--plum-soft); margin-top:4px; display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
   .photo-badge{ font-size:.68rem; background:var(--blush); color:var(--rose-deep); padding:2px 7px; border-radius:10px; font-weight:700; }
-  .photo-del{ position:absolute; top:4px; right:4px; background:rgba(91,58,75,.55); color:#fff; border:none; border-radius:50%; width:22px; height:22px; font-size:.7rem; line-height:1; }
+  .photo-del{ position:absolute; top:4px; right:4px; background:rgba(91,58,75,.55); color:#fff; border:none; border-radius:50%; width:22px; height:22px; font-size:.7rem; line-height:1; z-index:2; }
+  .photo-media-wrap{ position:relative; cursor:zoom-in; }
+  .photo-zoom-btn{ position:absolute; bottom:6px; right:6px; background:rgba(91,58,75,.55); color:#fff; border:none; border-radius:50%; width:26px; height:26px; font-size:.85rem; z-index:2; }
   .frame-row{ display:flex; gap:8px; flex-wrap:wrap; }
   .frame-opt{ border:1.5px solid var(--line); background:var(--paper); border-radius:12px; padding:8px 12px; font-size:.78rem; font-weight:600; color:var(--plum-soft); }
   .frame-opt.sel{ border-color:var(--rose-deep); background:var(--blush); color:var(--plum); }
+
+  /* Lightbox xem ảnh/video cỡ lớn */
+  .lightbox-bg{
+    position:fixed; inset:0; background:rgba(20,10,15,.92); z-index:200; display:none;
+    align-items:center; justify-content:center; flex-direction:column; padding:20px;
+  }
+  .lightbox-bg.show{ display:flex; }
+  .lightbox-bg img, .lightbox-bg video{ max-width:100%; max-height:78vh; border-radius:10px; object-fit:contain; }
+  .lightbox-top{ position:absolute; top:16px; left:16px; right:16px; display:flex; justify-content:space-between; align-items:center; }
+  .lightbox-close{ background:rgba(255,255,255,.15); color:#fff; border:none; border-radius:50%; width:38px; height:38px; font-size:1.1rem; }
+  .lightbox-actions{ display:flex; gap:10px; margin-top:16px; }
+  .lightbox-btn{ background:rgba(255,255,255,.15); color:#fff; border:none; border-radius:14px; padding:10px 18px; font-size:.85rem; font-weight:700; display:flex; align-items:center; gap:6px; }
+  .lightbox-caption{ color:#fff; text-align:center; font-size:.85rem; margin-top:12px; max-width:90%; opacity:.9; }
+
+  /* Miss log */
+  .miss-log-list{ max-height:260px; overflow-y:auto; padding-right:4px; }
+  .miss-group-detail{ font-size:.7rem; color:var(--plum-soft); padding:4px 4px 8px; line-height:1.6; }
+  .miss-group summary{ cursor:pointer; list-style:none; }
+  .miss-group summary::-webkit-details-marker{ display:none; }
 
   /* Milestone timeline */
   .timeline{ position:relative; padding-left:22px; }
@@ -346,8 +367,8 @@
           <div class="miss-stat"><b id="stat-theirs">0</b><span id="stat-theirs-label">Em đã nhớ</span></div>
         </div>
         <div class="miss-log">
-          <h3>Khoảnh khắc nhớ nhau gần đây</h3>
-          <div id="miss-list"></div>
+          <h3>Tất cả khoảnh khắc nhớ nhau</h3>
+          <div class="miss-log-list" id="miss-list"></div>
         </div>
       </div>
     </section>
@@ -528,6 +549,19 @@
   </div>
 </div>
 
+<div class="lightbox-bg" id="lightbox-bg" onclick="if(event.target===this) closeLightbox()">
+  <div class="lightbox-top">
+    <span></span>
+    <button class="lightbox-close" onclick="closeLightbox()">✕</button>
+  </div>
+  <img id="lightbox-img" src="" style="display:none;">
+  <video id="lightbox-video" controls style="display:none;"></video>
+  <div class="lightbox-caption" id="lightbox-caption"></div>
+  <div class="lightbox-actions">
+    <a class="lightbox-btn" id="lightbox-download" href="#" target="_blank">⬇️ Tải về</a>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <!-- Firebase SDK -->
@@ -678,10 +712,33 @@ function renderMiss(){
   document.getElementById('stat-theirs').textContent = theirs;
   const list = document.getElementById('miss-list');
   if(entries.length===0){ list.innerHTML = '<div class="empty">Chưa có ai nhớ ai cả, bấm nút phía trên đi nào 💗</div>'; return; }
-  list.innerHTML = entries.slice(0,8).map(([,v])=>{
-    const name = CFG.users[v.who].name;
-    const d = new Date(v.ts);
-    return `<div class="miss-item"><span>${CFG.users[v.who].emoji} ${name} đã nhớ</span><span>${d.toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'})}</span></div>`;
+
+  // Gộp các lần bấm liên tiếp của cùng 1 người, cách nhau không quá 2 phút,
+  // thành 1 nhóm gọn — nhưng vẫn giữ đủ TOÀN BỘ mốc thời gian bên trong để xem lại.
+  const GROUP_GAP_MS = 2 * 60 * 1000;
+  const groups = [];
+  for(const [,v] of entries){
+    const last = groups[groups.length-1];
+    if(last && last.who===v.who && (last.times[last.times.length-1] - v.ts) <= GROUP_GAP_MS){
+      last.times.push(v.ts);
+    }else{
+      groups.push({ who: v.who, times: [v.ts] });
+    }
+  }
+
+  const fmt = ts => new Date(ts).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'});
+  const fmtShort = ts => new Date(ts).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'});
+
+  list.innerHTML = groups.map(g=>{
+    const name = CFG.users[g.who].name, emoji = CFG.users[g.who].emoji;
+    if(g.times.length===1){
+      return `<div class="miss-item"><span>${emoji} ${name} đã nhớ</span><span>${fmt(g.times[0])}</span></div>`;
+    }
+    const allTimes = g.times.map(fmtShort).join(' &nbsp;•&nbsp; ');
+    return `<details class="miss-group">
+      <summary class="miss-item"><span>${emoji} ${name} đã nhớ ×${g.times.length}</span><span>${fmt(g.times[0])} ▾</span></summary>
+      <div class="miss-group-detail">${allTimes}</div>
+    </details>`;
   }).join('');
 }
 
@@ -824,17 +881,50 @@ function renderPhotos(){
   if(entries.length===0){ grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">Album đang trống. Đăng tấm ảnh hoặc video đầu tiên đi 📷</div>'; return; }
   grid.innerHTML = entries.map(([id,v])=>{
     const media = v.type==='video'
-      ? `<video src="${v.url}" controls style="width:100%; height:150px; border-radius:8px; object-fit:cover;"></video>`
+      ? `<video src="${v.url}" style="width:100%; height:150px; border-radius:8px; object-fit:cover; pointer-events:none;"></video>`
       : `<img src="${v.url}" loading="lazy">`;
     const place = v.checkinPlace ? `<span class="photo-badge">📍 ${escapeHtml(v.checkinPlace)}</span>` : '';
     const time = v.checkinTime ? `<span class="photo-badge">🕒 ${new Date(v.checkinTime).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'})}</span>` : '';
     return `<div class="photo-card frame-${v.frame||'none'}">
       ${v.author===currentUser?`<button class="photo-del" onclick="removePhoto('${id}')">✕</button>`:''}
-      ${media}
+      <div class="photo-media-wrap" onclick="openLightbox('${id}')">
+        ${media}
+        ${v.type==='video' ? '<div style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:2rem; color:#fff; text-shadow:0 2px 6px rgba(0,0,0,.5); pointer-events:none;">▶️</div>' : ''}
+        <button class="photo-zoom-btn" onclick="event.stopPropagation(); openLightbox('${id}')">🔍</button>
+      </div>
       ${v.caption?`<div class="photo-cap">${escapeHtml(v.caption)}</div>`:''}
       <div class="photo-meta">${time}${place}</div>
     </div>`;
   }).join('');
+}
+function cloudinaryDownloadUrl(url){
+  // Cloudinary hỗ trợ tải file gốc về máy bằng cách chèn fl_attachment vào link
+  return url.includes('/upload/') ? url.replace('/upload/', '/upload/fl_attachment/') : url;
+}
+function openLightbox(id){
+  const v = photoData[id];
+  if(!v) return;
+  const imgEl = document.getElementById('lightbox-img');
+  const vidEl = document.getElementById('lightbox-video');
+  if(v.type==='video'){
+    vidEl.src = v.url; vidEl.style.display='block'; vidEl.play().catch(()=>{});
+    imgEl.style.display='none'; imgEl.src='';
+  }else{
+    imgEl.src = v.url; imgEl.style.display='block';
+    vidEl.style.display='none'; vidEl.pause(); vidEl.src='';
+  }
+  const parts = [];
+  if(v.caption) parts.push(escapeHtml(v.caption).replace(/<br>/g,' '));
+  if(v.checkinTime) parts.push('🕒 ' + new Date(v.checkinTime).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'}));
+  if(v.checkinPlace) parts.push('📍 ' + escapeHtml(v.checkinPlace));
+  document.getElementById('lightbox-caption').innerHTML = parts.join(' &nbsp;·&nbsp; ');
+  document.getElementById('lightbox-download').href = cloudinaryDownloadUrl(v.url);
+  document.getElementById('lightbox-bg').classList.add('show');
+}
+function closeLightbox(){
+  document.getElementById('lightbox-bg').classList.remove('show');
+  const vidEl = document.getElementById('lightbox-video');
+  vidEl.pause(); vidEl.src='';
 }
 function removePhoto(id){
   if(!confirm('Xoá ảnh/video này khỏi album? (file gốc trên Cloudinary sẽ không tự xoá, chỉ ẩn khỏi app)')) return;
