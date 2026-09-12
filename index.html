@@ -745,36 +745,44 @@ function setPhotoProgress(pct, text){
   document.getElementById('photo-progress-bar').style.width = pct + '%';
   document.getElementById('photo-progress-text').textContent = text;
 }
-function uploadToCloudinary(blob, filename, onProgress, onWaitingServer){
-  return new Promise((resolve, reject)=>{
-    if(!CFG.cloudinary || !CFG.cloudinary.cloudName || CFG.cloudinary.cloudName.indexOf('DÁN_')===0){
-      reject(new Error('Chưa cấu hình Cloudinary trong APP_CONFIG'));
-      return;
-    }
-    const fd = new FormData();
-    fd.append('file', blob, filename);
-    fd.append('upload_preset', CFG.cloudinary.uploadPreset);
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CFG.cloudinary.cloudName}/auto/upload`);
-    xhr.timeout = 180000; // tối đa 3 phút, tránh treo vô thời hạn
-    xhr.upload.onprogress = e=>{
-      if(e.lengthComputable && onProgress){
-        const pct = Math.round((e.loaded/e.total)*100);
-        onProgress(pct);
-        if(pct>=100 && onWaitingServer) onWaitingServer();
-      }
-    };
-    xhr.onload = ()=>{
-      try{
-        const res = JSON.parse(xhr.responseText);
-        if(xhr.status>=200 && xhr.status<300 && res.secure_url){ resolve(res); }
-        else{ reject(new Error(res.error ? res.error.message : 'Upload thất bại, thử lại nhé')); }
-      }catch(e){ reject(new Error('Không đọc được phản hồi từ máy chủ, thử lại nhé')); }
-    };
-    xhr.onerror = ()=>reject(new Error('Lỗi mạng khi tải lên, kiểm tra kết nối rồi thử lại'));
-    xhr.ontimeout = ()=>reject(new Error('Tải lên quá lâu (quá 3 phút) — file có thể quá lớn hoặc mạng yếu, thử video ngắn/nhẹ hơn nhé'));
-    xhr.send(fd);
-  });
+async function uploadToCloudinary(blob, filename, onProgress){
+  if(!CFG.cloudinary || !CFG.cloudinary.cloudName || CFG.cloudinary.cloudName.indexOf('DÁN_')===0){
+    throw new Error('Chưa cấu hình Cloudinary trong APP_CONFIG');
+  }
+  const fd = new FormData();
+  fd.append('file', blob, filename);
+  fd.append('upload_preset', CFG.cloudinary.uploadPreset);
+
+  // Vì fetch() không báo % tải lên theo thời gian thực (nhưng ổn định hơn nhiều
+  // trên Safari khi app chạy ở chế độ "đã thêm vào Màn hình chính"), mình mô
+  // phỏng thanh tiến trình tăng dần để người dùng biết app vẫn đang chạy.
+  let fakePct = 0;
+  const fakeTimer = setInterval(()=>{
+    fakePct = Math.min(fakePct + (fakePct<60?4:1), 90);
+    if(onProgress) onProgress(fakePct);
+  }, 300);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(()=>controller.abort(), 180000); // tối đa 3 phút
+
+  try{
+    const resp = await fetch(`https://api.cloudinary.com/v1_1/${CFG.cloudinary.cloudName}/auto/upload`, {
+      method: 'POST', body: fd, signal: controller.signal
+    });
+    clearInterval(fakeTimer);
+    clearTimeout(timeoutId);
+    if(onProgress) onProgress(100);
+    let res;
+    try{ res = await resp.json(); }
+    catch(e){ throw new Error('Không đọc được phản hồi từ máy chủ, thử lại nhé'); }
+    if(resp.ok && res.secure_url){ return res; }
+    throw new Error(res.error ? res.error.message : 'Upload thất bại, thử lại nhé');
+  }catch(err){
+    clearInterval(fakeTimer);
+    clearTimeout(timeoutId);
+    if(err.name==='AbortError'){ throw new Error('Tải lên quá lâu (quá 3 phút) — thử mạng ổn định hơn hoặc ảnh/video nhẹ hơn nhé'); }
+    throw new Error(err.message || 'Lỗi mạng khi tải lên, kiểm tra kết nối rồi thử lại');
+  }
 }
 async function savePhoto(){
   if(!pendingFile){ showToast('Bạn chưa chọn ảnh hoặc video'); return; }
@@ -790,8 +798,7 @@ async function savePhoto(){
       setPhotoProgress(2,'Chuẩn bị tải video...');
     }
     const result = await uploadToCloudinary(blobToUpload, filename,
-      pct=>{ setPhotoProgress(pct, pct<100 ? ('Đang tải lên... ' + pct + '%') : 'Đã gửi xong, chờ máy chủ xử lý...'); },
-      ()=>{ setPhotoProgress(100, pendingFileType==='video' ? 'Đang xử lý video, có thể mất thêm chút thời gian...' : 'Đang xử lý...'); }
+      pct=>{ setPhotoProgress(pct, pct<100 ? ('Đang tải lên... ' + pct + '%') : (pendingFileType==='video' ? 'Đang xử lý video, có thể mất thêm chút thời gian...' : 'Đang xử lý...')); }
     );
     setPhotoProgress(100,'Đang lưu vào album...');
     const id = db.ref('photos').push().key;
