@@ -35,11 +35,17 @@
       appId: "1:931857057118:web:ae27657586c9498ee8fbcf",
       measurementId: "G-88K2DLTDM2"
     },
+    // Cấu hình Cloudinary — dùng để lưu ẢNH và VIDEO trong Album (miễn phí, không cần thẻ ngân hàng).
+    // Xem README.md phần "Bước 3.5" để biết cách lấy 2 giá trị này.
+    cloudinary: {
+      cloudName: "love_app",
+      uploadPreset: "love_app"
+    },
     // Tên hiển thị, mật khẩu (tự đặt) và biểu tượng cho từng người.
     // Đổi mật khẩu ở đây trước khi đưa lên GitHub.
     users: {
-      nam: { name: "Anh", password: "2002", emoji: "🤴", color: "#7C93C9" },
-      nu:  { name: "Em",  password: "2001", emoji: "👸", color: "#E88AA8" }
+      nam: { name: "Anh", password: "0000", emoji: "🤴", color: "#7C93C9" },
+      nu:  { name: "Em",  password: "0000", emoji: "👸", color: "#E88AA8" }
     },
     // Ngày bắt đầu yêu nhau (YYYY-MM-DD)
     startDate: "2026-09-04",
@@ -191,6 +197,25 @@
 
   .empty{ text-align:center; color:var(--plum-soft); font-size:.9rem; padding:30px 10px; }
 
+  /* Photo album */
+  .photo-grid{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .photo-card{ background:var(--paper); border-radius:16px; padding:8px; box-shadow:var(--shadow); position:relative; }
+  .photo-card img{ width:100%; height:150px; object-fit:cover; display:block; border-radius:8px; }
+  .photo-card.frame-none img{ border-radius:12px; }
+  .photo-card.frame-polaroid{ padding:10px 10px 30px; background:#fff; transform:rotate(-1.2deg); }
+  .photo-card.frame-polaroid:nth-child(even){ transform:rotate(1.2deg); }
+  .photo-card.frame-polaroid img{ border-radius:2px; }
+  .photo-card.frame-gold img{ border:4px solid var(--gold); border-radius:10px; }
+  .photo-card.frame-heart img{ border-radius:50% 50% 50% 4px / 60% 60% 40% 40%; border:3px solid var(--rose-deep); }
+  .photo-card.frame-double img{ border:2px solid #fff; outline:3px solid var(--rose); border-radius:8px; }
+  .photo-cap{ font-size:.82rem; margin-top:8px; color:var(--plum); }
+  .photo-meta{ font-size:.7rem; color:var(--plum-soft); margin-top:4px; display:flex; align-items:center; gap:4px; flex-wrap:wrap; }
+  .photo-badge{ font-size:.68rem; background:var(--blush); color:var(--rose-deep); padding:2px 7px; border-radius:10px; font-weight:700; }
+  .photo-del{ position:absolute; top:4px; right:4px; background:rgba(91,58,75,.55); color:#fff; border:none; border-radius:50%; width:22px; height:22px; font-size:.7rem; line-height:1; }
+  .frame-row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .frame-opt{ border:1.5px solid var(--line); background:var(--paper); border-radius:12px; padding:8px 12px; font-size:.78rem; font-weight:600; color:var(--plum-soft); }
+  .frame-opt.sel{ border-color:var(--rose-deep); background:var(--blush); color:var(--plum); }
+
   /* Milestone timeline */
   .timeline{ position:relative; padding-left:22px; }
   .timeline::before{ content:""; position:absolute; left:6px; top:6px; bottom:6px; width:2px; background:var(--rose); }
@@ -336,6 +361,15 @@
       <div id="diary-list"></div>
     </section>
 
+    <!-- ---- Album ảnh ---- -->
+    <section class="view" id="view-photos">
+      <div class="sec-head">
+        <h2>Album ảnh</h2>
+        <button class="add-btn" onclick="openPhotoModal()">+</button>
+      </div>
+      <div class="photo-grid" id="photo-grid"></div>
+    </section>
+
     <!-- ---- Kỷ niệm ---- -->
     <section class="view" id="view-milestones">
       <div class="sec-head">
@@ -373,6 +407,7 @@
     <nav class="tabbar">
       <button class="tab-btn active" data-view="home" onclick="showView('home')"><span class="ic">🏠</span>Trang chủ</button>
       <button class="tab-btn" data-view="diary" onclick="showView('diary')"><span class="ic">📔</span>Nhật ký</button>
+      <button class="tab-btn" data-view="photos" onclick="showView('photos')"><span class="ic">📷</span>Ảnh</button>
       <button class="tab-btn" data-view="milestones" onclick="showView('milestones')"><span class="ic">📍</span>Kỷ niệm</button>
       <button class="tab-btn" data-view="notes" onclick="showView('notes')"><span class="ic">💌</span>Nhắn nhủ</button>
       <button class="tab-btn" data-view="settings" onclick="showView('settings')"><span class="ic">⚙️</span>Cài đặt</button>
@@ -399,6 +434,53 @@
     <div class="modal-actions">
       <button class="btn-ghost" onclick="closeModal('diary-modal')">Huỷ</button>
       <button class="btn-primary" onclick="saveDiary()">Lưu lại</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="photo-modal">
+  <div class="modal">
+    <h3>Đăng ảnh mới</h3>
+    <div class="field">
+      <label>Chọn ảnh</label>
+      <input type="file" id="photo-file" accept="image/*,video/*" onchange="onPhotoFileChange(event)">
+      <div style="font-size:.74rem; color:var(--plum-soft); margin-top:5px;">Ảnh sẽ được nén tự động. Video nên dưới 90 giây / dưới 90MB để phù hợp gói miễn phí.</div>
+      <div id="photo-preview-wrap" style="display:none; margin-top:10px; text-align:center;">
+        <img id="photo-preview" src="" style="max-width:100%; max-height:220px; border-radius:12px; display:none;">
+        <video id="video-preview" controls style="max-width:100%; max-height:220px; border-radius:12px; display:none;"></video>
+      </div>
+      <div id="photo-progress-wrap" style="display:none; margin-top:10px;">
+        <div style="background:var(--blush); border-radius:8px; height:8px; overflow:hidden;">
+          <div id="photo-progress-bar" style="background:var(--rose-deep); height:100%; width:0%; transition:width .2s;"></div>
+        </div>
+        <div id="photo-progress-text" style="font-size:.72rem; color:var(--plum-soft); margin-top:4px; text-align:center;"></div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Khung ảnh</label>
+      <div class="frame-row" id="frame-row">
+        <button type="button" class="frame-opt sel" data-frame="none" onclick="selectFrame('none')">Không viền</button>
+        <button type="button" class="frame-opt" data-frame="polaroid" onclick="selectFrame('polaroid')">Polaroid</button>
+        <button type="button" class="frame-opt" data-frame="gold" onclick="selectFrame('gold')">Viền vàng</button>
+        <button type="button" class="frame-opt" data-frame="heart" onclick="selectFrame('heart')">Bo tim</button>
+        <button type="button" class="frame-opt" data-frame="double" onclick="selectFrame('double')">Viền đôi</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>Chú thích (không bắt buộc)</label>
+      <input id="photo-caption" placeholder="Khoảnh khắc này là...">
+    </div>
+    <div class="field">
+      <label>Check-in lúc</label>
+      <input type="datetime-local" id="photo-checkin-time">
+    </div>
+    <div class="field">
+      <label>Check-in ở đâu (không bắt buộc)</label>
+      <input id="photo-checkin-place" placeholder="Ví dụ: Đà Lạt, quán cafe ABC...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('photo-modal')">Huỷ</button>
+      <button class="btn-primary" id="photo-save-btn" onclick="savePhoto()">Đăng ảnh</button>
     </div>
   </div>
 </div>
@@ -458,7 +540,8 @@
    ========================================================= */
 const CFG = window.APP_CONFIG;
 let db, currentUser = null, pendingWho = null;
-let diaryData = {}, milestoneData = {}, noteData = {}, missData = {};
+let diaryData = {}, milestoneData = {}, noteData = {}, missData = {}, photoData = {};
+let selectedFrame = 'none', pendingFile = null, pendingFileType = null;
 
 const MOODS = ["🥰","😊","🥲","😴","😤","🤒","🎉","💭"];
 
@@ -565,6 +648,7 @@ function attachListeners(){
   db.ref('milestones').on('value', snap=>{ milestoneData = snap.val()||{}; renderMilestones(); });
   db.ref('notes').on('value', snap=>{ noteData = snap.val()||{}; renderNotes(); });
   db.ref('misses').on('value', snap=>{ missData = snap.val()||{}; renderMiss(); });
+  db.ref('photos').on('value', snap=>{ photoData = snap.val()||{}; renderPhotos(); });
 }
 
 /* =========================================================
@@ -599,6 +683,148 @@ function renderMiss(){
     const d = new Date(v.ts);
     return `<div class="miss-item"><span>${CFG.users[v.who].emoji} ${name} đã nhớ</span><span>${d.toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'})}</span></div>`;
   }).join('');
+}
+
+/* =========================================================
+   ALBUM ẢNH / VIDEO
+   ========================================================= */
+function openPhotoModal(){
+  pendingFile = null; pendingFileType = null; selectedFrame = 'none';
+  document.getElementById('photo-file').value = '';
+  document.getElementById('photo-preview-wrap').style.display='none';
+  document.getElementById('photo-preview').style.display='none';
+  document.getElementById('video-preview').style.display='none';
+  document.getElementById('photo-caption').value='';
+  document.getElementById('photo-checkin-place').value='';
+  const now = new Date();
+  now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('photo-checkin-time').value = now.toISOString().slice(0,16);
+  document.querySelectorAll('.frame-opt').forEach(b=>b.classList.toggle('sel', b.dataset.frame==='none'));
+  document.getElementById('photo-progress-wrap').style.display='none';
+  document.getElementById('photo-modal').classList.add('show');
+}
+function selectFrame(f){
+  selectedFrame = f;
+  document.querySelectorAll('.frame-opt').forEach(b=>b.classList.toggle('sel', b.dataset.frame===f));
+}
+function onPhotoFileChange(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  pendingFile = file;
+  pendingFileType = file.type.startsWith('video') ? 'video' : 'image';
+  const wrap = document.getElementById('photo-preview-wrap');
+  const imgEl = document.getElementById('photo-preview');
+  const vidEl = document.getElementById('video-preview');
+  const url = URL.createObjectURL(file);
+  wrap.style.display='block';
+  if(pendingFileType==='video'){
+    vidEl.src = url; vidEl.style.display='block'; imgEl.style.display='none';
+  }else{
+    imgEl.src = url; imgEl.style.display='block'; vidEl.style.display='none';
+  }
+}
+function compressImage(file, maxDim, quality){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      let w = img.width, h = img.height;
+      if(w > h && w > maxDim){ h = Math.round(h * maxDim/w); w = maxDim; }
+      else if(h >= w && h > maxDim){ w = Math.round(w * maxDim/h); h = maxDim; }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      canvas.toBlob(blob=>{ URL.revokeObjectURL(url); resolve(blob); }, 'image/jpeg', quality);
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
+function setPhotoProgress(pct, text){
+  document.getElementById('photo-progress-wrap').style.display='block';
+  document.getElementById('photo-progress-bar').style.width = pct + '%';
+  document.getElementById('photo-progress-text').textContent = text;
+}
+function uploadToCloudinary(blob, filename, onProgress){
+  return new Promise((resolve, reject)=>{
+    if(!CFG.cloudinary || !CFG.cloudinary.cloudName || CFG.cloudinary.cloudName.indexOf('DÁN_')===0){
+      reject(new Error('Chưa cấu hình Cloudinary trong APP_CONFIG'));
+      return;
+    }
+    const fd = new FormData();
+    fd.append('file', blob, filename);
+    fd.append('upload_preset', CFG.cloudinary.uploadPreset);
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${CFG.cloudinary.cloudName}/auto/upload`);
+    xhr.upload.onprogress = e=>{
+      if(e.lengthComputable && onProgress){ onProgress(Math.round((e.loaded/e.total)*100)); }
+    };
+    xhr.onload = ()=>{
+      try{
+        const res = JSON.parse(xhr.responseText);
+        if(xhr.status>=200 && xhr.status<300 && res.secure_url){ resolve(res); }
+        else{ reject(new Error(res.error ? res.error.message : 'Upload thất bại')); }
+      }catch(e){ reject(e); }
+    };
+    xhr.onerror = ()=>reject(new Error('Lỗi mạng khi tải lên'));
+    xhr.send(fd);
+  });
+}
+async function savePhoto(){
+  if(!pendingFile){ showToast('Bạn chưa chọn ảnh hoặc video'); return; }
+  const btn = document.getElementById('photo-save-btn');
+  btn.disabled = true;
+  try{
+    let blobToUpload = pendingFile, filename = pendingFile.name || 'upload';
+    if(pendingFileType==='image'){
+      setPhotoProgress(5,'Đang nén ảnh...');
+      blobToUpload = await compressImage(pendingFile, 1600, 0.78);
+      filename = 'photo.jpg';
+    }else{
+      setPhotoProgress(2,'Chuẩn bị tải video...');
+    }
+    const result = await uploadToCloudinary(blobToUpload, filename, pct=>{
+      setPhotoProgress(pct, 'Đang tải lên... ' + pct + '%');
+    });
+    setPhotoProgress(100,'Hoàn tất, đang lưu...');
+    const id = db.ref('photos').push().key;
+    db.ref('photos/'+id).set({
+      url: result.secure_url, publicId: result.public_id || '',
+      type: pendingFileType, frame: selectedFrame,
+      caption: document.getElementById('photo-caption').value.trim(),
+      checkinTime: document.getElementById('photo-checkin-time').value,
+      checkinPlace: document.getElementById('photo-checkin-place').value.trim(),
+      author: currentUser, createdAt: Date.now()
+    });
+    closeModal('photo-modal');
+    showToast('Đã đăng lên album 📷');
+  }catch(err){
+    console.error(err);
+    showToast(err.message || 'Có lỗi khi tải lên, thử lại nhé');
+  }
+  btn.disabled = false;
+}
+function renderPhotos(){
+  const grid = document.getElementById('photo-grid');
+  const entries = Object.entries(photoData).sort((a,b)=>b[1].createdAt-a[1].createdAt);
+  if(entries.length===0){ grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">Album đang trống. Đăng tấm ảnh hoặc video đầu tiên đi 📷</div>'; return; }
+  grid.innerHTML = entries.map(([id,v])=>{
+    const media = v.type==='video'
+      ? `<video src="${v.url}" controls style="width:100%; height:150px; border-radius:8px; object-fit:cover;"></video>`
+      : `<img src="${v.url}" loading="lazy">`;
+    const place = v.checkinPlace ? `<span class="photo-badge">📍 ${escapeHtml(v.checkinPlace)}</span>` : '';
+    const time = v.checkinTime ? `<span class="photo-badge">🕒 ${new Date(v.checkinTime).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'})}</span>` : '';
+    return `<div class="photo-card frame-${v.frame||'none'}">
+      ${v.author===currentUser?`<button class="photo-del" onclick="removePhoto('${id}')">✕</button>`:''}
+      ${media}
+      ${v.caption?`<div class="photo-cap">${escapeHtml(v.caption)}</div>`:''}
+      <div class="photo-meta">${time}${place}</div>
+    </div>`;
+  }).join('');
+}
+function removePhoto(id){
+  if(!confirm('Xoá ảnh/video này khỏi album? (file gốc trên Cloudinary sẽ không tự xoá, chỉ ẩn khỏi app)')) return;
+  db.ref('photos/'+id).remove();
 }
 
 /* =========================================================
