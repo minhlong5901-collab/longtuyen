@@ -38,7 +38,7 @@
     // Cấu hình Cloudinary — dùng để lưu ẢNH và VIDEO trong Album (miễn phí, không cần thẻ ngân hàng).
     // Xem README.md phần "Bước 3.5" để biết cách lấy 2 giá trị này.
     cloudinary: {
-      cloudName: "love_app",
+      cloudName: "v9xe1zw5",
       uploadPreset: "love_app"
     },
     // Tên hiển thị, mật khẩu (tự đặt) và biểu tượng cho từng người.
@@ -745,7 +745,7 @@ function setPhotoProgress(pct, text){
   document.getElementById('photo-progress-bar').style.width = pct + '%';
   document.getElementById('photo-progress-text').textContent = text;
 }
-function uploadToCloudinary(blob, filename, onProgress){
+function uploadToCloudinary(blob, filename, onProgress, onWaitingServer){
   return new Promise((resolve, reject)=>{
     if(!CFG.cloudinary || !CFG.cloudinary.cloudName || CFG.cloudinary.cloudName.indexOf('DÁN_')===0){
       reject(new Error('Chưa cấu hình Cloudinary trong APP_CONFIG'));
@@ -756,17 +756,23 @@ function uploadToCloudinary(blob, filename, onProgress){
     fd.append('upload_preset', CFG.cloudinary.uploadPreset);
     const xhr = new XMLHttpRequest();
     xhr.open('POST', `https://api.cloudinary.com/v1_1/${CFG.cloudinary.cloudName}/auto/upload`);
+    xhr.timeout = 180000; // tối đa 3 phút, tránh treo vô thời hạn
     xhr.upload.onprogress = e=>{
-      if(e.lengthComputable && onProgress){ onProgress(Math.round((e.loaded/e.total)*100)); }
+      if(e.lengthComputable && onProgress){
+        const pct = Math.round((e.loaded/e.total)*100);
+        onProgress(pct);
+        if(pct>=100 && onWaitingServer) onWaitingServer();
+      }
     };
     xhr.onload = ()=>{
       try{
         const res = JSON.parse(xhr.responseText);
         if(xhr.status>=200 && xhr.status<300 && res.secure_url){ resolve(res); }
-        else{ reject(new Error(res.error ? res.error.message : 'Upload thất bại')); }
-      }catch(e){ reject(e); }
+        else{ reject(new Error(res.error ? res.error.message : 'Upload thất bại, thử lại nhé')); }
+      }catch(e){ reject(new Error('Không đọc được phản hồi từ máy chủ, thử lại nhé')); }
     };
-    xhr.onerror = ()=>reject(new Error('Lỗi mạng khi tải lên'));
+    xhr.onerror = ()=>reject(new Error('Lỗi mạng khi tải lên, kiểm tra kết nối rồi thử lại'));
+    xhr.ontimeout = ()=>reject(new Error('Tải lên quá lâu (quá 3 phút) — file có thể quá lớn hoặc mạng yếu, thử video ngắn/nhẹ hơn nhé'));
     xhr.send(fd);
   });
 }
@@ -783,12 +789,13 @@ async function savePhoto(){
     }else{
       setPhotoProgress(2,'Chuẩn bị tải video...');
     }
-    const result = await uploadToCloudinary(blobToUpload, filename, pct=>{
-      setPhotoProgress(pct, 'Đang tải lên... ' + pct + '%');
-    });
-    setPhotoProgress(100,'Hoàn tất, đang lưu...');
+    const result = await uploadToCloudinary(blobToUpload, filename,
+      pct=>{ setPhotoProgress(pct, pct<100 ? ('Đang tải lên... ' + pct + '%') : 'Đã gửi xong, chờ máy chủ xử lý...'); },
+      ()=>{ setPhotoProgress(100, pendingFileType==='video' ? 'Đang xử lý video, có thể mất thêm chút thời gian...' : 'Đang xử lý...'); }
+    );
+    setPhotoProgress(100,'Đang lưu vào album...');
     const id = db.ref('photos').push().key;
-    db.ref('photos/'+id).set({
+    await db.ref('photos/'+id).set({
       url: result.secure_url, publicId: result.public_id || '',
       type: pendingFileType, frame: selectedFrame,
       caption: document.getElementById('photo-caption').value.trim(),
