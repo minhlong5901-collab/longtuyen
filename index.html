@@ -248,9 +248,6 @@
   .tl-days{ font-size:.74rem; color:var(--gold); font-weight:700; }
 
   /* Notes */
-  .note-unread{ border-color:var(--rose-deep); }
-  .note-actions{ display:flex; gap:12px; margin-top:8px; }
-  .note-actions button{ border:none; background:transparent; font-size:.78rem; color:var(--plum-soft); text-decoration:underline; padding:0;}
 
   /* Forms / modal */
   .modal-bg{
@@ -400,15 +397,6 @@
       <div class="timeline" id="milestone-list"></div>
     </section>
 
-    <!-- ---- Nhắn nhủ ---- -->
-    <section class="view" id="view-notes">
-      <div class="sec-head">
-        <h2>Nhắn nhủ</h2>
-        <button class="add-btn" onclick="openNoteModal()">+</button>
-      </div>
-      <div id="note-list"></div>
-    </section>
-
     <!-- ---- Cài đặt ---- -->
     <section class="view" id="view-settings">
       <div class="sec-head"><h2>Cài đặt</h2></div>
@@ -430,7 +418,6 @@
       <button class="tab-btn" data-view="diary" onclick="showView('diary')"><span class="ic">📔</span>Nhật ký</button>
       <button class="tab-btn" data-view="photos" onclick="showView('photos')"><span class="ic">📷</span>Ảnh</button>
       <button class="tab-btn" data-view="milestones" onclick="showView('milestones')"><span class="ic">📍</span>Kỷ niệm</button>
-      <button class="tab-btn" data-view="notes" onclick="showView('notes')"><span class="ic">💌</span>Nhắn nhủ</button>
       <button class="tab-btn" data-view="settings" onclick="showView('settings')"><span class="ic">⚙️</span>Cài đặt</button>
     </nav>
   </div>
@@ -535,20 +522,6 @@
   </div>
 </div>
 
-<div class="modal-bg" id="note-modal">
-  <div class="modal">
-    <h3>Nhắn gửi yêu thương</h3>
-    <div class="field">
-      <label>Lời nhắn</label>
-      <textarea id="note-text" placeholder="Hôm nay ăn gì chưa? Nhớ mặc ấm nha..."></textarea>
-    </div>
-    <div class="modal-actions">
-      <button class="btn-ghost" onclick="closeModal('note-modal')">Huỷ</button>
-      <button class="btn-primary" onclick="saveNote()">Gửi</button>
-    </div>
-  </div>
-</div>
-
 <div class="lightbox-bg" id="lightbox-bg" onclick="if(event.target===this) closeLightbox()">
   <div class="lightbox-top">
     <span></span>
@@ -574,7 +547,7 @@
    ========================================================= */
 const CFG = window.APP_CONFIG;
 let db, currentUser = null, pendingWho = null;
-let diaryData = {}, milestoneData = {}, noteData = {}, missData = {}, photoData = {};
+let diaryData = {}, milestoneData = {}, missData = {}, photoData = {};
 let selectedFrame = 'none', pendingFile = null, pendingFileType = null;
 
 const MOODS = ["🥰","😊","🥲","😴","😤","🤒","🎉","💭"];
@@ -680,7 +653,6 @@ function attachListeners(){
   if(!db) return;
   db.ref('diary').on('value', snap=>{ diaryData = snap.val()||{}; renderDiary(); });
   db.ref('milestones').on('value', snap=>{ milestoneData = snap.val()||{}; renderMilestones(); });
-  db.ref('notes').on('value', snap=>{ noteData = snap.val()||{}; renderNotes(); });
   db.ref('misses').on('value', snap=>{ missData = snap.val()||{}; renderMiss(); });
   db.ref('photos').on('value', snap=>{ photoData = snap.val()||{}; renderPhotos(); });
 }
@@ -1029,43 +1001,6 @@ function updateUpcomingBanner(repeatables){
   document.getElementById('upcoming-title').textContent = upcoming.title;
   document.getElementById('upcoming-days').textContent = upcoming.daysLeft===0 ? 'Là hôm nay đó! 🎉' : `còn ${upcoming.daysLeft} ngày nữa`;
 }
-
-/* =========================================================
-   NHẮN NHỦ
-   ========================================================= */
-function openNoteModal(){
-  document.getElementById('note-text').value='';
-  document.getElementById('note-modal').classList.add('show');
-}
-function saveNote(){
-  const text = document.getElementById('note-text').value.trim();
-  if(!text){ return; }
-  const id = db.ref('notes').push().key;
-  db.ref('notes/'+id).set({ author: currentUser, text, createdAt: Date.now(), read:false });
-  closeModal('note-modal');
-  showToast('Đã gửi lời nhắn 💌');
-}
-function renderNotes(){
-  const list = document.getElementById('note-list');
-  const entries = Object.entries(noteData).sort((a,b)=>b[1].createdAt-a[1].createdAt);
-  if(entries.length===0){ list.innerHTML='<div class="empty">Chưa có lời nhắn nào. Gửi điều gì đó ngọt ngào đi 💌</div>'; return; }
-  list.innerHTML = entries.map(([id,v])=>{
-    const u = CFG.users[v.author];
-    const unreadClass = (!v.read && v.author!==currentUser) ? 'note-unread' : '';
-    return `<div class="card ${unreadClass}">
-      <div class="card-top">
-        <span class="badge" style="background:${u.color}">${u.emoji} ${u.name}</span>
-        <span class="card-date">${new Date(v.createdAt).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'})}</span>
-      </div>
-      <div class="card-body">${escapeHtml(v.text)}</div>
-      <div class="note-actions">
-        ${(!v.read && v.author!==currentUser)?`<button onclick="markRead('${id}')">Đánh dấu đã đọc</button>`:''}
-        ${v.author===currentUser?`<button onclick="removeItem('notes','${id}')">Xoá</button>`:''}
-      </div>
-    </div>`;
-  }).join('');
-}
-function markRead(id){ db.ref('notes/'+id+'/read').set(true); }
 
 /* =========================================================
    TIỆN ÍCH CHUNG
