@@ -374,6 +374,14 @@
         </div>
       </div>
 
+      <div class="banner" id="notify-banner" style="display:none; cursor:pointer;" onclick="requestNotifyPermission()">
+        <div class="ic">🔔</div>
+        <div class="txt">
+          <b>Bật thông báo để không bỏ lỡ</b>
+          <span>Bấm vào đây để nhận thông báo khi người kia cập nhật gì đó</span>
+        </div>
+      </div>
+
       <div class="miss-section">
         <button class="miss-btn" onclick="pressMiss(event)">
           💗<span class="lbl" id="miss-btn-label">NHỚ EM</span>
@@ -435,7 +443,7 @@
           <label>Thông báo</label>
           <div style="font-size:.82rem; color:var(--plum-soft);">Bật để nhận thông báo trên điện thoại này mỗi khi người kia thêm nhật ký, ảnh, cột mốc, hoặc bấm nút Nhớ.</div>
         </div>
-        <button class="btn-primary" onclick="requestNotifyPermission()">🔔 Bật thông báo trên thiết bị này</button>
+        <button class="btn-primary" id="notify-btn" onclick="requestNotifyPermission()">🔔 Bật thông báo trên thiết bị này</button>
       </div>
     </section>
 
@@ -665,13 +673,29 @@ function linkOneSignalIdentity(){
   if(!window.OneSignalDeferred) return;
   window.OneSignalDeferred.push(async function(OneSignal){
     try{ await OneSignal.login(currentUser); }catch(e){ console.error('OneSignal login lỗi:', e); }
+    refreshNotifyUI(OneSignal);
+    try{
+      OneSignal.Notifications.addEventListener('permissionChange', ()=>refreshNotifyUI(OneSignal));
+    }catch(e){ /* một số bản SDK cũ có thể không có sự kiện này, bỏ qua */ }
   });
+}
+function refreshNotifyUI(OneSignal){
+  const enabled = !!(OneSignal && OneSignal.Notifications && OneSignal.Notifications.permission);
+  const btn = document.getElementById('notify-btn');
+  const banner = document.getElementById('notify-banner');
+  if(btn){
+    btn.textContent = enabled ? '🔔 Đã bật thông báo' : '🔔 Bật thông báo trên thiết bị này';
+    btn.disabled = enabled;
+    btn.style.opacity = enabled ? '0.7' : '1';
+  }
+  if(banner){ banner.style.display = enabled ? 'none' : 'flex'; }
 }
 function requestNotifyPermission(){
   if(!window.OneSignalDeferred){ showToast('Chưa tải được OneSignal'); return; }
   window.OneSignalDeferred.push(async function(OneSignal){
     try{
       await OneSignal.Notifications.requestPermission();
+      refreshNotifyUI(OneSignal);
       showToast(OneSignal.Notifications.permission ? 'Đã bật thông báo 🔔' : 'Bạn chưa cho phép thông báo');
     }catch(e){
       console.error(e);
