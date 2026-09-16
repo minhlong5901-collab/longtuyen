@@ -68,7 +68,16 @@
   window.OneSignalDeferred = window.OneSignalDeferred || [];
   OneSignalDeferred.push(async function(OneSignal){
     try{
-      await OneSignal.init({ appId: window.APP_CONFIG.onesignal.appId });
+      // Trang này có thể nằm trong 1 thư mục con (ví dụ /longtuyen/) thay vì
+      // domain gốc, nên cần chỉ rõ cho OneSignal biết file service worker
+      // (OneSignalSDKWorker.js) nằm ở đâu — tự tính theo đường dẫn hiện tại,
+      // không phụ thuộc tên repo, để lỡ đổi tên repo vẫn chạy đúng.
+      const basePath = location.pathname.substring(0, location.pathname.lastIndexOf('/')+1);
+      await OneSignal.init({
+        appId: window.APP_CONFIG.onesignal.appId,
+        serviceWorkerPath: basePath.substring(1) + 'OneSignalSDKWorker.js',
+        serviceWorkerParam: { scope: basePath }
+      });
     }catch(e){ console.error('OneSignal init lỗi:', e); }
   });
 </script>
