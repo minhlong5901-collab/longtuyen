@@ -41,6 +41,14 @@
       cloudName: "v9xe1zw5",
       uploadPreset: "love_app"
     },
+    // Cấu hình OneSignal — dùng để gửi THÔNG BÁO trên điện thoại khi người kia
+    // cập nhật gì đó (miễn phí, không cần thẻ ngân hàng).
+    // appId lấy ở Settings > Keys & IDs. restApiKey cũng lấy ở đúng trang đó
+    // (mục "REST API Key") — cần để app có thể GỬI thông báo, không chỉ nhận.
+    onesignal: {
+      appId: "4498f3bd-a32e-4057-95a2-8e4422203571",
+      restApiKey: "os_v2_app_ismphpndfzafpfncrzcceibvofsykzigl5guj2vyxa5qx4rraegrxhxphkld6cisovf3pwijmuoyixpjimuq6wu7hqeitnskmr7udqy"
+    },
     // Tên hiển thị, mật khẩu (tự đặt) và biểu tượng cho từng người.
     // Đổi mật khẩu ở đây trước khi đưa lên GitHub.
     users: {
@@ -52,6 +60,17 @@
     // Tên hiển thị ở đầu trang
     coupleTitle: "Câu chuyện của Anh & Em"
   };
+</script>
+
+<!-- OneSignal Web SDK: gửi thông báo khi người kia cập nhật gì đó -->
+<script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+<script>
+  window.OneSignalDeferred = window.OneSignalDeferred || [];
+  OneSignalDeferred.push(async function(OneSignal){
+    try{
+      await OneSignal.init({ appId: window.APP_CONFIG.onesignal.appId });
+    }catch(e){ console.error('OneSignal init lỗi:', e); }
+  });
 </script>
 
 <style>
@@ -411,6 +430,13 @@
         </div>
         <button class="btn-primary" onclick="saveSettings()">Lưu thay đổi</button>
       </div>
+      <div class="card">
+        <div class="field" style="margin-bottom:8px;">
+          <label>Thông báo</label>
+          <div style="font-size:.82rem; color:var(--plum-soft);">Bật để nhận thông báo trên điện thoại này mỗi khi người kia thêm nhật ký, ảnh, cột mốc, hoặc bấm nút Nhớ.</div>
+        </div>
+        <button class="btn-primary" onclick="requestNotifyPermission()">🔔 Bật thông báo trên thiết bị này</button>
+      </div>
     </section>
 
     <nav class="tabbar">
@@ -629,6 +655,49 @@ function enterApp(){
 
   computeDaysTogether();
   attachListeners();
+  linkOneSignalIdentity();
+}
+
+/* =========================================================
+   THÔNG BÁO (ONESIGNAL)
+   ========================================================= */
+function linkOneSignalIdentity(){
+  if(!window.OneSignalDeferred) return;
+  window.OneSignalDeferred.push(async function(OneSignal){
+    try{ await OneSignal.login(currentUser); }catch(e){ console.error('OneSignal login lỗi:', e); }
+  });
+}
+function requestNotifyPermission(){
+  if(!window.OneSignalDeferred){ showToast('Chưa tải được OneSignal'); return; }
+  window.OneSignalDeferred.push(async function(OneSignal){
+    try{
+      await OneSignal.Notifications.requestPermission();
+      showToast(OneSignal.Notifications.permission ? 'Đã bật thông báo 🔔' : 'Bạn chưa cho phép thông báo');
+    }catch(e){
+      console.error(e);
+      showToast('Không bật được thông báo trên thiết bị này');
+    }
+  });
+}
+async function sendPushToPartner(title, body){
+  const cfg = CFG.onesignal;
+  if(!cfg || !cfg.restApiKey || cfg.restApiKey.indexOf('DÁN_')===0) return; // chưa cấu hình REST API Key, bỏ qua
+  try{
+    await fetch('https://api.onesignal.com/notifications', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Authorization': 'Key ' + cfg.restApiKey
+      },
+      body: JSON.stringify({
+        app_id: cfg.appId,
+        target_channel: 'push',
+        headings: { en: title },
+        contents: { en: body },
+        include_aliases: { external_id: [ otherOf(currentUser) ] }
+      })
+    });
+  }catch(e){ console.error('Gửi thông báo thất bại:', e); }
 }
 
 /* =========================================================
@@ -666,6 +735,7 @@ function pressMiss(e){
   db.ref('misses/'+id).set({ who: currentUser, ts: Date.now() });
   spawnHeart(e);
   showToast('Đã gửi một nỗi nhớ 💗');
+  sendPushToPartner('💗 ' + CFG.users[currentUser].name + ' đang nhớ bạn', 'Bấm mở app để nhớ lại nhé');
 }
 function spawnHeart(e){
   const h = document.createElement('div');
@@ -841,6 +911,8 @@ async function savePhoto(){
     });
     closeModal('photo-modal');
     showToast('Đã đăng lên album 📷');
+    sendPushToPartner('📷 ' + CFG.users[currentUser].name + ' vừa đăng ảnh mới',
+      pendingFileType==='video' ? 'Có video mới trong Album, xem ngay nào' : 'Có ảnh mới trong Album, xem ngay nào');
   }catch(err){
     console.error(err);
     showToast(err.message || 'Có lỗi khi tải lên, thử lại nhé');
@@ -923,6 +995,7 @@ function saveDiary(){
   });
   closeModal('diary-modal');
   showToast('Đã lưu vào nhật ký');
+  sendPushToPartner('📔 ' + CFG.users[currentUser].name + ' vừa viết nhật ký mới', 'Có 1 trang nhật ký mới, đọc ngay nào');
 }
 function renderDiary(){
   const list = document.getElementById('diary-list');
@@ -963,6 +1036,7 @@ function saveMilestone(){
   });
   closeModal('milestone-modal');
   showToast('Đã thêm cột mốc mới');
+  sendPushToPartner('📍 ' + CFG.users[currentUser].name + ' vừa thêm 1 cột mốc mới', title);
 }
 function nextOccurrence(dateStr, repeat){
   const base = new Date(dateStr+'T00:00:00');
