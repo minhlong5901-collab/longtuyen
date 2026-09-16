@@ -43,11 +43,14 @@
     },
     // Cấu hình OneSignal — dùng để gửi THÔNG BÁO trên điện thoại khi người kia
     // cập nhật gì đó (miễn phí, không cần thẻ ngân hàng).
-    // appId lấy ở Settings > Keys & IDs. restApiKey cũng lấy ở đúng trang đó
-    // (mục "REST API Key") — cần để app có thể GỬI thông báo, không chỉ nhận.
+    // appId lấy ở Settings > Keys & IDs. pushRelayUrl là link Cloudflare Worker
+    // trung chuyển việc gửi thông báo (xem README.md, mục "Bước 3.7").
     onesignal: {
       appId: "4498f3bd-a32e-4057-95a2-8e4422203571",
-      restApiKey: "os_v2_app_ismphpndfzafpfncrzcceibvofsykzigl5guj2vyxa5qx4rraegrxhxphkld6cisovf3pwijmuoyixpjimuq6wu7hqeitnskmr7udqy"
+      // Link Cloudflare Worker làm trạm trung chuyển gửi thông báo (bắt buộc,
+      // vì trình duyệt bị CORS chặn không cho gọi thẳng OneSignal).
+      // Xem README.md phần "Bước 3.7" để lấy link này.
+      pushRelayUrl: "https://longtuyen.minhlong5901.workers.dev"
     },
     // Tên hiển thị, mật khẩu (tự đặt) và biểu tượng cho từng người.
     // Đổi mật khẩu ở đây trước khi đưa lên GitHub.
@@ -739,22 +742,14 @@ function requestNotifyPermission(){
 }
 async function sendPushToPartner(title, body){
   const cfg = CFG.onesignal;
-  if(!cfg || !cfg.restApiKey || cfg.restApiKey.indexOf('DÁN_')===0) return; // chưa cấu hình REST API Key, bỏ qua
+  if(!cfg || !cfg.pushRelayUrl || cfg.pushRelayUrl.indexOf('DÁN_')===0) return; // chưa cấu hình trạm trung chuyển, bỏ qua
   try{
-    await fetch('https://api.onesignal.com/notifications', {
+    const resp = await fetch(cfg.pushRelayUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json; charset=utf-8',
-        'Authorization': 'Key ' + cfg.restApiKey
-      },
-      body: JSON.stringify({
-        app_id: cfg.appId,
-        target_channel: 'push',
-        headings: { en: title },
-        contents: { en: body },
-        include_aliases: { external_id: [ otherOf(currentUser) ] }
-      })
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, body, target: otherOf(currentUser) })
     });
+    if(!resp.ok){ console.error('Gửi thông báo thất bại, mã lỗi:', resp.status, await resp.text()); }
   }catch(e){ console.error('Gửi thông báo thất bại:', e); }
 }
 // Ghi lại 1 hoạt động vào lịch sử (chuông 🔔) VÀ gửi thông báo đẩy cho người kia
