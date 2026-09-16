@@ -145,6 +145,16 @@
     border:none; background:transparent; color:var(--plum-soft); font-size:.82rem;
     text-decoration:underline; padding:4px;
   }
+  .bell-btn{ position:relative; border:none; background:var(--paper); border-radius:50%; width:38px; height:38px; font-size:1.1rem; box-shadow:var(--shadow); }
+  .bell-badge{
+    position:absolute; top:-4px; right:-4px; background:var(--rose-deep); color:#fff; font-size:.62rem; font-weight:700;
+    min-width:16px; height:16px; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:0 3px;
+  }
+  .bell-item{ display:flex; gap:10px; padding:10px 4px; border-bottom:1px dashed var(--line); align-items:flex-start; }
+  .bell-item .ic{ font-size:1.2rem; }
+  .bell-item .txt b{ display:block; font-size:.88rem; font-weight:700; }
+  .bell-item .txt span.body{ font-size:.8rem; color:var(--plum); }
+  .bell-item .txt span.time{ font-size:.7rem; color:var(--plum-soft); display:block; margin-top:2px; }
 
   /* ---------- Sections ---------- */
   .view{ display:none; padding:6px 20px 20px; animation:fadeIn .35s ease; }
@@ -355,7 +365,12 @@
         <div class="greet" id="greet-text">Chào buổi sáng,</div>
         <h1 id="header-title">Chuyện của chúng mình</h1>
       </div>
-      <button class="logout-btn" onclick="logout()">Đăng xuất</button>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <button class="bell-btn" onclick="openBell()">
+          🔔<span class="bell-badge" id="bell-badge" style="display:none;">0</span>
+        </button>
+        <button class="logout-btn" onclick="logout()">Đăng xuất</button>
+      </div>
     </header>
 
     <!-- ---- Trang chủ ---- -->
@@ -556,6 +571,16 @@
   </div>
 </div>
 
+<div class="modal-bg" id="bell-modal">
+  <div class="modal">
+    <h3>🔔 Lịch sử cập nhật</h3>
+    <div id="bell-list" style="max-height:60vh; overflow-y:auto;"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('bell-modal')">Đóng</button>
+    </div>
+  </div>
+</div>
+
 <div class="lightbox-bg" id="lightbox-bg" onclick="if(event.target===this) closeLightbox()">
   <div class="lightbox-top">
     <span></span>
@@ -581,7 +606,7 @@
    ========================================================= */
 const CFG = window.APP_CONFIG;
 let db, currentUser = null, pendingWho = null;
-let diaryData = {}, milestoneData = {}, missData = {}, photoData = {};
+let diaryData = {}, milestoneData = {}, missData = {}, photoData = {}, notifData = {};
 let selectedFrame = 'none', pendingFile = null, pendingFileType = null;
 
 const MOODS = ["🥰","😊","🥲","😴","😤","🤒","🎉","💭"];
@@ -723,6 +748,42 @@ async function sendPushToPartner(title, body){
     });
   }catch(e){ console.error('Gửi thông báo thất bại:', e); }
 }
+// Ghi lại 1 hoạt động vào lịch sử (chuông 🔔) VÀ gửi thông báo đẩy cho người kia
+function logActivity(type, title, body){
+  if(db){
+    const id = db.ref('notifications').push().key;
+    db.ref('notifications/'+id).set({ type, title, body, author: currentUser, createdAt: Date.now() });
+  }
+  sendPushToPartner(title, body);
+}
+function renderBell(){
+  const entries = Object.entries(notifData).sort((a,b)=>b[1].createdAt-a[1].createdAt);
+  const lastSeen = Number(localStorage.getItem('love_app_bell_seen_'+currentUser) || 0);
+  const unread = entries.filter(([,v])=>v.author!==currentUser && v.createdAt>lastSeen).length;
+  const badge = document.getElementById('bell-badge');
+  if(unread>0){ badge.style.display='flex'; badge.textContent = unread>99?'99+':unread; }
+  else{ badge.style.display='none'; }
+
+  const list = document.getElementById('bell-list');
+  if(entries.length===0){ list.innerHTML = '<div class="empty">Chưa có cập nhật nào cả.</div>'; return; }
+  list.innerHTML = entries.map(([,v])=>{
+    const name = CFG.users[v.author] ? CFG.users[v.author].name : '?';
+    const time = new Date(v.createdAt).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'});
+    return `<div class="bell-item">
+      <div class="ic">${v.type||'🔔'}</div>
+      <div class="txt">
+        <b>${escapeHtml(v.title||'')}</b>
+        <span class="body">${escapeHtml(v.body||'')}</span>
+        <span class="time">${name} · ${time}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+function openBell(){
+  document.getElementById('bell-modal').classList.add('show');
+  localStorage.setItem('love_app_bell_seen_'+currentUser, String(Date.now()));
+  document.getElementById('bell-badge').style.display='none';
+}
 
 /* =========================================================
    ĐẾM NGÀY YÊU NHAU
@@ -748,6 +809,7 @@ function attachListeners(){
   db.ref('milestones').on('value', snap=>{ milestoneData = snap.val()||{}; renderMilestones(); });
   db.ref('misses').on('value', snap=>{ missData = snap.val()||{}; renderMiss(); });
   db.ref('photos').on('value', snap=>{ photoData = snap.val()||{}; renderPhotos(); });
+  db.ref('notifications').on('value', snap=>{ notifData = snap.val()||{}; renderBell(); });
 }
 
 /* =========================================================
@@ -759,7 +821,7 @@ function pressMiss(e){
   db.ref('misses/'+id).set({ who: currentUser, ts: Date.now() });
   spawnHeart(e);
   showToast('Đã gửi một nỗi nhớ 💗');
-  sendPushToPartner('💗 ' + CFG.users[currentUser].name + ' đang nhớ bạn', 'Bấm mở app để nhớ lại nhé');
+  logActivity('💗', '💗 ' + CFG.users[currentUser].name + ' đang nhớ bạn', 'Bấm mở app để nhớ lại nhé');
 }
 function spawnHeart(e){
   const h = document.createElement('div');
@@ -935,7 +997,7 @@ async function savePhoto(){
     });
     closeModal('photo-modal');
     showToast('Đã đăng lên album 📷');
-    sendPushToPartner('📷 ' + CFG.users[currentUser].name + ' vừa đăng ảnh mới',
+    logActivity('📷', '📷 ' + CFG.users[currentUser].name + ' vừa đăng ảnh mới',
       pendingFileType==='video' ? 'Có video mới trong Album, xem ngay nào' : 'Có ảnh mới trong Album, xem ngay nào');
   }catch(err){
     console.error(err);
@@ -1019,7 +1081,7 @@ function saveDiary(){
   });
   closeModal('diary-modal');
   showToast('Đã lưu vào nhật ký');
-  sendPushToPartner('📔 ' + CFG.users[currentUser].name + ' vừa viết nhật ký mới', 'Có 1 trang nhật ký mới, đọc ngay nào');
+  logActivity('📔', '📔 ' + CFG.users[currentUser].name + ' vừa viết nhật ký mới', 'Có 1 trang nhật ký mới, đọc ngay nào');
 }
 function renderDiary(){
   const list = document.getElementById('diary-list');
@@ -1060,7 +1122,7 @@ function saveMilestone(){
   });
   closeModal('milestone-modal');
   showToast('Đã thêm cột mốc mới');
-  sendPushToPartner('📍 ' + CFG.users[currentUser].name + ' vừa thêm 1 cột mốc mới', title);
+  logActivity('📍', '📍 ' + CFG.users[currentUser].name + ' vừa thêm 1 cột mốc mới', title);
 }
 function nextOccurrence(dateStr, repeat){
   const base = new Date(dateStr+'T00:00:00');
