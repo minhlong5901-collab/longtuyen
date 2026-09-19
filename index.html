@@ -234,21 +234,47 @@
   .card-date{ font-size:.76rem; color:var(--plum-soft); margin-top:2px; }
   .card-body{ margin-top:8px; font-size:.92rem; line-height:1.5; white-space:pre-wrap; }
   .card-mood{ font-size:1.3rem; }
-  .reaction-area{ margin-top:10px; }
-  .reaction-summary{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .reaction-area{ margin-top:10px; position:relative; }
+  .reaction-summary{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .reaction-chip{
-    border:1.5px solid var(--line); background:var(--cream); border-radius:14px;
-    padding:4px 8px; font-size:.9rem; line-height:1; display:flex; align-items:center; gap:4px;
+    border:none; background:var(--paper); box-shadow:0 2px 6px -2px rgba(91,58,75,.25); border-radius:20px;
+    padding:3px 10px 3px 3px; line-height:1; display:flex; align-items:center; gap:5px; transition:transform .12s ease;
   }
-  .reaction-chip.sel{ border-color:var(--rose-deep); background:var(--blush); }
-  .reaction-chip .rcount{ font-size:.66rem; font-weight:700; color:var(--plum-soft); }
+  .reaction-chip:active{ transform:scale(.94); }
+  .reaction-chip.sel{ box-shadow:0 0 0 1.5px var(--rose-deep), 0 2px 6px -2px rgba(91,58,75,.25); }
+  .reaction-chip .r-badge{
+    width:22px; height:22px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:.85rem; box-shadow:0 1px 3px rgba(0,0,0,.2);
+  }
+  .reaction-chip .rcount{ font-size:.72rem; font-weight:700; color:var(--plum-soft); }
   .reaction-add-btn{
-    border:1.5px solid var(--line); background:var(--paper); border-radius:50%; width:26px; height:26px;
-    font-size:.8rem; color:var(--plum-soft); display:flex; align-items:center; justify-content:center;
+    border:none; background:var(--paper); box-shadow:0 2px 6px -2px rgba(91,58,75,.25); border-radius:50%;
+    width:30px; height:30px; font-size:1rem; display:flex; align-items:center; justify-content:center;
+    transition:transform .12s ease; touch-action:none; user-select:none;
   }
-  .reaction-picker{ display:none; gap:6px; margin-top:8px; flex-wrap:wrap; background:var(--blush); padding:6px 8px; border-radius:14px; }
-  .reaction-pick-btn{ border:none; background:transparent; font-size:1.25rem; padding:2px 4px; border-radius:8px; }
-  .reaction-pick-btn:active{ background:rgba(255,255,255,.6); }
+  .reaction-add-btn:active{ transform:scale(.9); }
+  .reaction-picker{
+    display:none; position:absolute; bottom:calc(100% + 10px); left:0; gap:4px;
+    background:var(--paper); padding:8px 10px; border-radius:26px; box-shadow:0 10px 26px -8px rgba(91,58,75,.4);
+    z-index:5; align-items:flex-end;
+  }
+  .reaction-picker::after{
+    content:""; position:absolute; bottom:-6px; left:14px; width:12px; height:12px;
+    background:var(--paper); transform:rotate(45deg); border-radius:2px;
+  }
+  .reaction-picker.show{ display:flex; }
+  .reaction-pick-btn{
+    border:none; background:var(--rcolor, var(--rose)); width:36px; height:36px; border-radius:50%;
+    font-size:1.2rem; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 5px rgba(0,0,0,.18);
+    transform:scale(0); animation:reactionPop .28s cubic-bezier(.34,1.56,.64,1) forwards; transition:transform .12s ease, margin .12s ease;
+  }
+  .reaction-pick-btn.hover{ transform:scale(1.55) translateY(-6px); z-index:2; }
+  .reaction-pick-btn:nth-child(1){ animation-delay:.01s; }
+  .reaction-pick-btn:nth-child(2){ animation-delay:.04s; }
+  .reaction-pick-btn:nth-child(3){ animation-delay:.07s; }
+  .reaction-pick-btn:nth-child(4){ animation-delay:.10s; }
+  .reaction-pick-btn:nth-child(5){ animation-delay:.13s; }
+  @keyframes reactionPop{ from{ transform:scale(0); } to{ transform:scale(1); } }
   .del-x{ border:none; background:transparent; color:var(--plum-soft); font-size:.75rem; text-decoration:underline; padding:2px; margin-top:6px;}
 
   .empty{ text-align:center; color:var(--plum-soft); font-size:.9rem; padding:30px 10px; }
@@ -1103,43 +1129,94 @@ function saveDiary(){
   logActivity('📔', '📔 ' + CFG.users[currentUser].name + ' vừa viết nhật ký mới', 'Có 1 trang nhật ký mới, đọc ngay nào');
 }
 const REACTIONS = [
-  { emoji:'❤️', label:'Yêu thích' },
-  { emoji:'😮', label:'Bất ngờ' },
-  { emoji:'😆', label:'Haha' },
-  { emoji:'😢', label:'Khóc' },
-  { emoji:'😡', label:'Phẫn nộ' }
+  { emoji:'❤️', label:'Yêu thích', color:'linear-gradient(135deg,#FF8FA3,#E23A63)' },
+  { emoji:'😮', label:'Bất ngờ',   color:'linear-gradient(135deg,#FFD98A,#F5A623)' },
+  { emoji:'😆', label:'Haha',      color:'linear-gradient(135deg,#FFE79A,#F7C948)' },
+  { emoji:'😢', label:'Khóc',      color:'linear-gradient(135deg,#9AD0FF,#4C9AE8)' },
+  { emoji:'😡', label:'Phẫn nộ',   color:'linear-gradient(135deg,#FFA47D,#E8613D)' }
 ];
+function reactionColor(emoji){
+  const r = REACTIONS.find(x=>x.emoji===emoji);
+  return r ? r.color : 'var(--rose)';
+}
 function renderReactionRow(entryId, reactions){
   reactions = reactions || {};
   const used = REACTIONS.filter(r => Object.values(reactions).some(x=>x===r.emoji));
   const summary = used.map(r=>{
     const count = Object.values(reactions).filter(x=>x===r.emoji).length;
     const mine = reactions[currentUser]===r.emoji;
-    return `<button type="button" class="reaction-chip ${mine?'sel':''}" title="${r.label}" onclick="toggleDiaryReaction('${entryId}','${r.emoji}')">${r.emoji}<span class="rcount">${count}</span></button>`;
+    return `<button type="button" class="reaction-chip ${mine?'sel':''}" title="${r.label}" onclick="toggleDiaryReaction('${entryId}','${r.emoji}')">
+      <span class="r-badge" style="background:${r.color}">${r.emoji}</span><span class="rcount">${count}</span>
+    </button>`;
   }).join('');
   const pickerId = 'reaction-picker-' + entryId;
   const picker = REACTIONS.map(r=>
-    `<button type="button" class="reaction-pick-btn" title="${r.label}" onclick="pickDiaryReaction('${entryId}','${r.emoji}')">${r.emoji}</button>`
+    `<button type="button" class="reaction-pick-btn" data-emoji="${r.emoji}" title="${r.label}" style="--rcolor:${r.color}" onclick="pickDiaryReaction('${entryId}','${r.emoji}')">${r.emoji}</button>`
   ).join('');
   return `<div class="reaction-area">
     <div class="reaction-summary">
       ${summary}
-      <button type="button" class="reaction-add-btn" onclick="toggleReactionPicker('${pickerId}')">🤍+</button>
+      <button type="button" class="reaction-add-btn"
+        onclick="toggleReactionPicker('${pickerId}')"
+        onpointerdown="startReactionHold(event,'${entryId}')"
+        onpointermove="moveReactionHold(event,'${entryId}')"
+        onpointerup="endReactionHold(event,'${entryId}')"
+        onpointercancel="endReactionHold(event,'${entryId}')"
+      >🤍+</button>
     </div>
     <div class="reaction-picker" id="${pickerId}">${picker}</div>
   </div>`;
 }
-function toggleReactionPicker(pickerId){
-  document.querySelectorAll('.reaction-picker').forEach(el=>{
-    if(el.id!==pickerId) el.style.display='none';
-  });
-  const el = document.getElementById(pickerId);
-  el.style.display = (el.style.display==='flex') ? 'none' : 'flex';
+function closeAllReactionPickers(){
+  document.querySelectorAll('.reaction-picker.show').forEach(el=>el.classList.remove('show'));
 }
+function toggleReactionPicker(pickerId){
+  if(reactionHeld) return; // đã xử lý bằng nhấn-giữ rồi, bỏ qua sự kiện click đi kèm
+  const el = document.getElementById(pickerId);
+  const willOpen = !el.classList.contains('show');
+  closeAllReactionPickers();
+  if(willOpen) el.classList.add('show');
+}
+// ---- Nhấn giữ + kéo để chọn cảm xúc (mượt như Messenger) ----
+let reactionHoldTimer = null, reactionDragMode = false, reactionHeld = false;
+function startReactionHold(e, entryId){
+  reactionHeld = false;
+  clearTimeout(reactionHoldTimer);
+  reactionHoldTimer = setTimeout(()=>{
+    reactionHeld = true;
+    reactionDragMode = true;
+    const pickerId = 'reaction-picker-'+entryId;
+    closeAllReactionPickers();
+    document.getElementById(pickerId).classList.add('show');
+    if(navigator.vibrate) navigator.vibrate(8);
+    try{ e.target.setPointerCapture(e.pointerId); }catch(err){}
+  }, 260);
+}
+function moveReactionHold(e, entryId){
+  if(!reactionDragMode) return;
+  const picker = document.getElementById('reaction-picker-'+entryId);
+  if(!picker || !picker.classList.contains('show')) return;
+  const el = document.elementFromPoint(e.clientX, e.clientY);
+  const btn = el ? el.closest('.reaction-pick-btn') : null;
+  picker.querySelectorAll('.reaction-pick-btn').forEach(b=>b.classList.toggle('hover', b===btn));
+}
+function endReactionHold(e, entryId){
+  clearTimeout(reactionHoldTimer);
+  if(reactionDragMode){
+    const picker = document.getElementById('reaction-picker-'+entryId);
+    const hovered = picker ? picker.querySelector('.reaction-pick-btn.hover') : null;
+    if(hovered){ pickDiaryReaction(entryId, hovered.dataset.emoji); }
+    else{ closeAllReactionPickers(); }
+    reactionDragMode = false;
+  }
+  setTimeout(()=>{ reactionHeld = false; }, 50); // tránh click ảo bắn ra ngay sau khi nhả tay
+}
+document.addEventListener('click', e=>{
+  if(!e.target.closest('.reaction-area')) closeAllReactionPickers();
+});
 function pickDiaryReaction(id, emoji){
   toggleDiaryReaction(id, emoji);
-  const el = document.getElementById('reaction-picker-'+id);
-  if(el) el.style.display='none';
+  closeAllReactionPickers();
 }
 function toggleDiaryReaction(id, emoji){
   if(!db) return;
