@@ -270,6 +270,7 @@
     transform:scale(0); animation:reactionPop .28s cubic-bezier(.34,1.56,.64,1) forwards; transition:transform .12s ease, margin .12s ease;
   }
   .reaction-pick-btn.hover{ transform:scale(1.55) translateY(-6px); z-index:2; }
+  .reaction-pick-btn.picked{ box-shadow:0 0 0 2.5px var(--plum), 0 2px 5px rgba(0,0,0,.18); }
   .reaction-pick-btn:nth-child(1){ animation-delay:.01s; }
   .reaction-pick-btn:nth-child(2){ animation-delay:.04s; }
   .reaction-pick-btn:nth-child(3){ animation-delay:.07s; }
@@ -1141,18 +1142,19 @@ function reactionColor(emoji){
   return r ? r.color : 'var(--rose)';
 }
 function renderReactionRow(entryId, reactions){
-  reactions = reactions || {};
-  const used = REACTIONS.filter(r => Object.values(reactions).some(x=>x===r.emoji));
+  reactions = reactions || {}; // { userId: { "❤️": true, "😆": true, ... }, ... }
+  const myPicks = reactions[currentUser] || {};
+  const used = REACTIONS.filter(r => Object.values(reactions).some(m => m && m[r.emoji]));
   const summary = used.map(r=>{
-    const count = Object.values(reactions).filter(x=>x===r.emoji).length;
-    const mine = reactions[currentUser]===r.emoji;
+    const count = Object.values(reactions).filter(m => m && m[r.emoji]).length;
+    const mine = !!myPicks[r.emoji];
     return `<button type="button" class="reaction-chip ${mine?'sel':''}" title="${r.label}" onclick="toggleDiaryReaction('${entryId}','${r.emoji}')">
       <span class="r-badge" style="background:${r.color}">${r.emoji}</span><span class="rcount">${count}</span>
     </button>`;
   }).join('');
   const pickerId = 'reaction-picker-' + entryId;
   const picker = REACTIONS.map(r=>
-    `<button type="button" class="reaction-pick-btn" data-emoji="${r.emoji}" title="${r.label}" style="--rcolor:${r.color}" onclick="pickDiaryReaction('${entryId}','${r.emoji}')">${r.emoji}</button>`
+    `<button type="button" class="reaction-pick-btn ${myPicks[r.emoji]?'picked':''}" data-emoji="${r.emoji}" title="${r.label}" style="--rcolor:${r.color}" onclick="pickDiaryReaction('${entryId}','${r.emoji}')">${r.emoji}</button>`
   ).join('');
   return `<div class="reaction-area">
     <div class="reaction-summary">
@@ -1178,7 +1180,7 @@ function toggleReactionPicker(pickerId){
   closeAllReactionPickers();
   if(willOpen) el.classList.add('show');
 }
-// ---- Nhấn giữ + kéo để chọn cảm xúc (mượt như Messenger) ----
+// ---- Nhấn giữ + kéo để chọn cảm xúc (mượt như Messenger); có thể chọn nhiều icon khác nhau ----
 let reactionHoldTimer = null, reactionDragMode = false, reactionHeld = false;
 function startReactionHold(e, entryId){
   reactionHeld = false;
@@ -1206,8 +1208,8 @@ function endReactionHold(e, entryId){
   if(reactionDragMode){
     const picker = document.getElementById('reaction-picker-'+entryId);
     const hovered = picker ? picker.querySelector('.reaction-pick-btn.hover') : null;
-    if(hovered){ pickDiaryReaction(entryId, hovered.dataset.emoji); }
-    else{ closeAllReactionPickers(); }
+    if(hovered){ toggleDiaryReaction(entryId, hovered.dataset.emoji); }
+    closeAllReactionPickers(); // kéo-thả xong thì đóng lại, giống Messenger
     reactionDragMode = false;
   }
   setTimeout(()=>{ reactionHeld = false; }, 50); // tránh click ảo bắn ra ngay sau khi nhả tay
@@ -1216,14 +1218,19 @@ document.addEventListener('click', e=>{
   if(!e.target.closest('.reaction-area')) closeAllReactionPickers();
 });
 function pickDiaryReaction(id, emoji){
+  // Bấm chọn từng icon trong bảng: KHÔNG tự đóng bảng, để chọn thêm icon khác nếu muốn
   toggleDiaryReaction(id, emoji);
-  closeAllReactionPickers();
 }
 function toggleDiaryReaction(id, emoji){
   if(!db) return;
-  const current = diaryData[id] && diaryData[id].reactions ? diaryData[id].reactions[currentUser] : null;
-  const ref = db.ref('diary/'+id+'/reactions/'+currentUser);
-  if(current===emoji){ ref.remove(); } else{ ref.set(emoji); }
+  const already = diaryData[id] && diaryData[id].reactions && diaryData[id].reactions[currentUser] && diaryData[id].reactions[currentUser][emoji];
+  const ref = db.ref('diary/'+id+'/reactions/'+currentUser+'/'+emojiToKey(emoji));
+  if(already){ ref.remove(); } else{ ref.set(true); }
+}
+function emojiToKey(emoji){
+  // Firebase không cho phép '.', '#', '$', '[', ']', '/' trong key — emoji thường không dính,
+  // nhưng đề phòng vẫn lọc bỏ để chắc chắn an toàn.
+  return emoji.replace(/[.#$\[\]/]/g, '');
 }
 function renderDiary(){
   const list = document.getElementById('diary-list');
