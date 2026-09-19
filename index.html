@@ -234,6 +234,13 @@
   .card-date{ font-size:.76rem; color:var(--plum-soft); margin-top:2px; }
   .card-body{ margin-top:8px; font-size:.92rem; line-height:1.5; white-space:pre-wrap; }
   .card-mood{ font-size:1.3rem; }
+  .reaction-row{ display:flex; gap:6px; margin-top:10px; flex-wrap:wrap; }
+  .reaction-btn{
+    position:relative; border:1.5px solid var(--line); background:var(--cream); border-radius:14px;
+    padding:5px 9px; font-size:1rem; line-height:1; display:flex; align-items:center; gap:4px;
+  }
+  .reaction-btn.sel{ border-color:var(--rose-deep); background:var(--blush); }
+  .reaction-btn .rcount{ font-size:.68rem; font-weight:700; color:var(--plum-soft); }
   .del-x{ border:none; background:transparent; color:var(--plum-soft); font-size:.75rem; text-decoration:underline; padding:2px; margin-top:6px;}
 
   .empty{ text-align:center; color:var(--plum-soft); font-size:.9rem; padding:30px 10px; }
@@ -1087,6 +1094,27 @@ function saveDiary(){
   showToast('Đã lưu vào nhật ký');
   logActivity('📔', '📔 ' + CFG.users[currentUser].name + ' vừa viết nhật ký mới', 'Có 1 trang nhật ký mới, đọc ngay nào');
 }
+const REACTIONS = [
+  { emoji:'❤️', label:'Yêu thích' },
+  { emoji:'😮', label:'Bất ngờ' },
+  { emoji:'😆', label:'Haha' },
+  { emoji:'😢', label:'Khóc' },
+  { emoji:'😡', label:'Phẫn nộ' }
+];
+function renderReactionRow(entryId, reactions){
+  reactions = reactions || {};
+  return `<div class="reaction-row">${REACTIONS.map(r=>{
+    const count = Object.values(reactions).filter(x=>x===r.emoji).length;
+    const mine = reactions[currentUser]===r.emoji;
+    return `<button type="button" class="reaction-btn ${mine?'sel':''}" title="${r.label}" onclick="toggleDiaryReaction('${entryId}','${r.emoji}')">${r.emoji}${count>0?`<span class="rcount">${count}</span>`:''}</button>`;
+  }).join('')}</div>`;
+}
+function toggleDiaryReaction(id, emoji){
+  if(!db) return;
+  const current = diaryData[id] && diaryData[id].reactions ? diaryData[id].reactions[currentUser] : null;
+  const ref = db.ref('diary/'+id+'/reactions/'+currentUser);
+  if(current===emoji){ ref.remove(); } else{ ref.set(emoji); }
+}
 function renderDiary(){
   const list = document.getElementById('diary-list');
   const entries = Object.entries(diaryData).sort((a,b)=>b[1].createdAt-a[1].createdAt);
@@ -1100,6 +1128,7 @@ function renderDiary(){
       </div>
       <div class="card-date">${formatDate(v.date)}</div>
       <div class="card-body">${escapeHtml(v.text)}</div>
+      ${renderReactionRow(id, v.reactions)}
       ${v.author===currentUser?`<button class="del-x" onclick="removeItem('diary','${id}')">Xoá</button>`:''}
     </div>`;
   }).join('');
