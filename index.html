@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Của Chúng Mình">
+<meta name="apple-mobile-web-app-title" content="L&T">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
 
@@ -55,8 +55,8 @@
     // Tên hiển thị, mật khẩu (tự đặt) và biểu tượng cho từng người.
     // Đổi mật khẩu ở đây trước khi đưa lên GitHub.
     users: {
-      nam: { name: "Anh", password: "0000", emoji: "🤴", color: "#7C93C9" },
-      nu:  { name: "Em",  password: "0000", emoji: "👸", color: "#E88AA8" }
+      nam: { name: "Anh", password: "2002", emoji: "🤴", color: "#7C93C9" },
+      nu:  { name: "Em",  password: "2001", emoji: "👸", color: "#E88AA8" }
     },
     // Ngày bắt đầu yêu nhau (YYYY-MM-DD)
     startDate: "2026-09-04",
@@ -384,6 +384,36 @@
   }
   #toast.show{ opacity:1; }
 
+  /* Banner hướng dẫn "Thêm vào Màn hình chính" cho iPhone Safari */
+  .a2hs-overlay{
+    position:fixed; inset:0; z-index:250; display:none; flex-direction:column; justify-content:flex-end; align-items:center;
+    background:rgba(20,10,15,.45); padding:0 18px calc(18px + env(safe-area-inset-bottom));
+  }
+  .a2hs-overlay.show{ display:flex; }
+  .a2hs-card{
+    background:var(--cream); border-radius:24px; padding:22px 20px 20px; max-width:380px; width:100%;
+    box-shadow:0 -10px 34px -10px rgba(91,58,75,.4); text-align:center; position:relative;
+    animation:a2hsSlideUp .35s cubic-bezier(.22,1,.36,1);
+  }
+  @keyframes a2hsSlideUp{ from{ transform:translateY(24px); opacity:0; } to{ transform:none; opacity:1; } }
+  .a2hs-close{ position:absolute; top:12px; right:12px; border:none; background:var(--blush); color:var(--plum-soft); width:26px; height:26px; border-radius:50%; font-size:.75rem; }
+  .a2hs-icon{ font-size:2rem; }
+  .a2hs-card h3{ margin:6px 0 6px; font-size:1.25rem; }
+  .a2hs-card p{ margin:0 0 14px; font-size:.85rem; color:var(--plum-soft); line-height:1.5; }
+  .a2hs-step{ display:flex; align-items:center; gap:10px; text-align:left; font-size:.88rem; padding:8px 4px; border-top:1px dashed var(--line); }
+  .a2hs-step:first-of-type{ border-top:none; }
+  .a2hs-num{
+    flex-shrink:0; width:24px; height:24px; border-radius:50%; background:var(--rose-deep); color:#fff;
+    font-size:.78rem; font-weight:700; display:flex; align-items:center; justify-content:center;
+  }
+  .a2hs-share-ic{ width:16px; height:16px; vertical-align:-3px; color:var(--rose-deep); margin:0 2px; }
+  .a2hs-got-it{
+    margin-top:14px; width:100%; border:none; background:var(--rose-deep); color:#fff; padding:12px;
+    border-radius:14px; font-weight:700; font-size:.92rem;
+  }
+  .a2hs-arrow{ font-size:1.8rem; margin-top:6px; animation:a2hsBounce 1.1s ease-in-out infinite; filter:drop-shadow(0 2px 6px rgba(0,0,0,.35)); }
+  @keyframes a2hsBounce{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(10px); } }
+
   select#settings-who{ margin-bottom:10px; }
 </style>
 </head>
@@ -649,6 +679,31 @@
   </div>
 </div>
 
+<div class="a2hs-overlay" id="a2hs-overlay">
+  <div class="a2hs-card">
+    <button class="a2hs-close" onclick="dismissA2HS()">✕</button>
+    <div class="a2hs-icon">💕</div>
+    <h3>Thêm app vào Màn hình chính</h3>
+    <p>Để mở nhanh như 1 app thật và nhận đủ thông báo, làm theo 2 bước sau nhé:</p>
+    <div class="a2hs-step">
+      <span class="a2hs-num">1</span>
+      <span>Bấm nút <b>Chia sẻ</b>
+        <svg class="a2hs-share-ic" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 3v12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          <path d="M8 7l4-4 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          <rect x="5" y="10" width="14" height="11" rx="2.3" stroke="currentColor" stroke-width="1.8"/>
+        </svg>
+        ở thanh dưới màn hình</span>
+    </div>
+    <div class="a2hs-step">
+      <span class="a2hs-num">2</span>
+      <span>Chọn <b>"Thêm vào Màn hình chính"</b></span>
+    </div>
+    <button class="a2hs-got-it" onclick="dismissA2HS()">Đã hiểu, đóng lại</button>
+  </div>
+  <div class="a2hs-arrow">⬇️</div>
+</div>
+
 <div id="toast"></div>
 
 <!-- Firebase SDK -->
@@ -692,6 +747,26 @@ function init(){
 
   const saved = localStorage.getItem('love_app_session');
   if(saved){ currentUser = saved; enterApp(); }
+
+  checkA2HSPrompt();
+}
+// Phát hiện: đang mở bằng Safari trên iPhone/iPad, CHƯA thêm vào Màn hình chính,
+// và chưa từng đóng banner này trước đó -> hiện hướng dẫn.
+function checkA2HSPrompt(){
+  try{
+    const ua = navigator.userAgent;
+    const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+    const isSafari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua);
+    const isStandalone = window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    const dismissed = localStorage.getItem('love_app_a2hs_dismissed') === '1';
+    if(isIOS && isSafari && !isStandalone && !dismissed){
+      setTimeout(()=>{ document.getElementById('a2hs-overlay').classList.add('show'); }, 600);
+    }
+  }catch(e){ /* không đoán được trình duyệt thì thôi, bỏ qua */ }
+}
+function dismissA2HS(){
+  document.getElementById('a2hs-overlay').classList.remove('show');
+  localStorage.setItem('love_app_a2hs_dismissed', '1');
 }
 
 /* =========================================================
@@ -1142,19 +1217,20 @@ function reactionColor(emoji){
   return r ? r.color : 'var(--rose)';
 }
 function renderReactionRow(entryId, reactions){
-  reactions = reactions || {}; // { userId: { "❤️": true, "😆": true, ... }, ... }
-  const myPicks = reactions[currentUser] || {};
-  const used = REACTIONS.filter(r => Object.values(reactions).some(m => m && m[r.emoji]));
+  reactions = reactions || {}; // { userId: { "❤️": 3, "😆": 1, ... }, ... }
+  const totalFor = emoji => Object.values(reactions).reduce((sum,m)=> sum + ((m && m[emoji]) || 0), 0);
+  const mineFor = emoji => (reactions[currentUser] && reactions[currentUser][emoji]) || 0;
+  const used = REACTIONS.filter(r => totalFor(r.emoji) > 0);
   const summary = used.map(r=>{
-    const count = Object.values(reactions).filter(m => m && m[r.emoji]).length;
-    const mine = !!myPicks[r.emoji];
-    return `<button type="button" class="reaction-chip ${mine?'sel':''}" title="${r.label}" onclick="toggleDiaryReaction('${entryId}','${r.emoji}')">
+    const count = totalFor(r.emoji);
+    const mine = mineFor(r.emoji) > 0;
+    return `<button type="button" class="reaction-chip ${mine?'sel':''}" title="${r.label} · bấm để +1" onclick="bumpReaction(event,'${entryId}','${r.emoji}')">
       <span class="r-badge" style="background:${r.color}">${r.emoji}</span><span class="rcount">${count}</span>
     </button>`;
   }).join('');
   const pickerId = 'reaction-picker-' + entryId;
   const picker = REACTIONS.map(r=>
-    `<button type="button" class="reaction-pick-btn ${myPicks[r.emoji]?'picked':''}" data-emoji="${r.emoji}" title="${r.label}" style="--rcolor:${r.color}" onclick="pickDiaryReaction('${entryId}','${r.emoji}')">${r.emoji}</button>`
+    `<button type="button" class="reaction-pick-btn ${mineFor(r.emoji)>0?'picked':''}" data-emoji="${r.emoji}" title="${r.label}" style="--rcolor:${r.color}" onclick="bumpReaction(event,'${entryId}','${r.emoji}')">${r.emoji}</button>`
   ).join('');
   return `<div class="reaction-area">
     <div class="reaction-summary">
@@ -1180,7 +1256,7 @@ function toggleReactionPicker(pickerId){
   closeAllReactionPickers();
   if(willOpen) el.classList.add('show');
 }
-// ---- Nhấn giữ + kéo để chọn cảm xúc (mượt như Messenger); có thể chọn nhiều icon khác nhau ----
+// ---- Nhấn giữ + kéo để chọn cảm xúc (mượt như Messenger); mỗi lần bấm/thả cộng dồn +1 ----
 let reactionHoldTimer = null, reactionDragMode = false, reactionHeld = false;
 function startReactionHold(e, entryId){
   reactionHeld = false;
@@ -1208,7 +1284,7 @@ function endReactionHold(e, entryId){
   if(reactionDragMode){
     const picker = document.getElementById('reaction-picker-'+entryId);
     const hovered = picker ? picker.querySelector('.reaction-pick-btn.hover') : null;
-    if(hovered){ toggleDiaryReaction(entryId, hovered.dataset.emoji); }
+    if(hovered){ bumpReaction({target: hovered}, entryId, hovered.dataset.emoji); }
     closeAllReactionPickers(); // kéo-thả xong thì đóng lại, giống Messenger
     reactionDragMode = false;
   }
@@ -1217,15 +1293,23 @@ function endReactionHold(e, entryId){
 document.addEventListener('click', e=>{
   if(!e.target.closest('.reaction-area')) closeAllReactionPickers();
 });
-function pickDiaryReaction(id, emoji){
-  // Bấm chọn từng icon trong bảng: KHÔNG tự đóng bảng, để chọn thêm icon khác nếu muốn
-  toggleDiaryReaction(id, emoji);
-}
-function toggleDiaryReaction(id, emoji){
+// Mỗi lần bấm (hoặc kéo-thả) vào 1 icon: cộng dồn thêm 1 cho icon đó — bấm liên tục để tăng số
+function bumpReaction(e, id, emoji){
   if(!db) return;
-  const already = diaryData[id] && diaryData[id].reactions && diaryData[id].reactions[currentUser] && diaryData[id].reactions[currentUser][emoji];
-  const ref = db.ref('diary/'+id+'/reactions/'+currentUser+'/'+emojiToKey(emoji));
-  if(already){ ref.remove(); } else{ ref.set(true); }
+  const key = emojiToKey(emoji);
+  db.ref('diary/'+id+'/reactions/'+currentUser+'/'+key).transaction(cur => (cur||0) + 1);
+  spawnReactionPop(e, emoji);
+}
+function spawnReactionPop(e, emoji){
+  if(!e || !e.target) return;
+  const rect = e.target.getBoundingClientRect();
+  const el = document.createElement('div');
+  el.className = 'heart-pop';
+  el.textContent = emoji;
+  el.style.left = (rect.left + rect.width/2 - 10) + 'px';
+  el.style.top = rect.top + 'px';
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 1200);
 }
 function emojiToKey(emoji){
   // Firebase không cho phép '.', '#', '$', '[', ']', '/' trong key — emoji thường không dính,
