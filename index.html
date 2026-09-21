@@ -544,6 +544,8 @@
           <div style="font-size:.82rem; color:var(--plum-soft);">Bật để nhận thông báo trên điện thoại này mỗi khi người kia thêm nhật ký, ảnh, cột mốc, hoặc bấm nút Nhớ.</div>
         </div>
         <button class="btn-primary" id="notify-btn" onclick="requestNotifyPermission()">🔔 Bật thông báo trên thiết bị này</button>
+        <button class="btn-ghost" id="test-notify-btn" onclick="testSendNotification()" style="width:100%; margin-top:10px;">🧪 Gửi thử thông báo cho người kia</button>
+        <div id="test-notify-result" style="font-size:.8rem; margin-top:8px; line-height:1.5;"></div>
       </div>
     </section>
 
@@ -860,15 +862,26 @@ function requestNotifyPermission(){
 }
 async function sendPushToPartner(title, body){
   const cfg = CFG.onesignal;
-  if(!cfg || !cfg.pushRelayUrl || cfg.pushRelayUrl.indexOf('DÁN_')===0) return; // chưa cấu hình trạm trung chuyển, bỏ qua
+  if(!cfg || !cfg.pushRelayUrl || cfg.pushRelayUrl.indexOf('DÁN_')===0){
+    return { ok:false, reason:'Chưa cấu hình pushRelayUrl trong APP_CONFIG' };
+  }
   try{
     const resp = await fetch(cfg.pushRelayUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, body, target: otherOf(currentUser) })
     });
-    if(!resp.ok){ console.error('Gửi thông báo thất bại, mã lỗi:', resp.status, await resp.text()); }
-  }catch(e){ console.error('Gửi thông báo thất bại:', e); }
+    const text = await resp.text();
+    let data = {}; try{ data = JSON.parse(text); }catch(e){}
+    if(!resp.ok){
+      console.error('Gửi thông báo thất bại, mã lỗi:', resp.status, text);
+      return { ok:false, reason: (data.errors && data.errors[0]) || data.error || ('Mã lỗi HTTP ' + resp.status), raw:text };
+    }
+    return { ok:true, recipients: data.recipients, data };
+  }catch(e){
+    console.error('Gửi thông báo thất bại:', e);
+    return { ok:false, reason: e.message };
+  }
 }
 // Ghi lại 1 hoạt động vào lịch sử (chuông 🔔) VÀ gửi thông báo đẩy cho người kia
 function logActivity(type, title, body){
@@ -877,6 +890,26 @@ function logActivity(type, title, body){
     db.ref('notifications/'+id).set({ type, title, body, author: currentUser, createdAt: Date.now() });
   }
   sendPushToPartner(title, body);
+}
+// Công cụ chẩn đoán: gửi thử 1 thông báo và báo rõ kết quả (bao nhiêu người nhận được)
+async function testSendNotification(){
+  const btn = document.getElementById('test-notify-btn');
+  const resultEl = document.getElementById('test-notify-result');
+  btn.disabled = true;
+  resultEl.textContent = 'Đang gửi thử...';
+  resultEl.style.color = 'var(--plum-soft)';
+  const result = await sendPushToPartner('🧪 Thông báo thử nghiệm', 'Nếu bạn thấy cái này nghĩa là mọi thứ đang hoạt động tốt!');
+  btn.disabled = false;
+  if(!result.ok){
+    resultEl.style.color = '#B4506B';
+    resultEl.textContent = '❌ Gửi thất bại: ' + (result.reason || 'không rõ lỗi');
+  }else if(!result.data || !result.data.id){
+    resultEl.style.color = '#B4506B';
+    resultEl.textContent = '⚠️ OneSignal nhận yêu cầu nhưng KHÔNG có ai để gửi (chưa tạo được thông báo) — nghĩa là thiết bị của ' + CFG.users[otherOf(currentUser)].name + ' chưa đăng ký nhận thông báo đúng cách. Người đó cần vào Cài đặt và bấm lại nút bật thông báo.';
+  }else{
+    resultEl.style.color = '#4a7c4e';
+    resultEl.textContent = '✅ Đã gửi thành công tới ' + (result.recipients ?? 1) + ' thiết bị. Nếu ' + CFG.users[otherOf(currentUser)].name + ' vẫn không thấy thông báo, kiểm tra chế độ Không làm phiền / Tập trung trên máy đó.';
+  }
 }
 function renderBell(){
   const entries = Object.entries(notifData).sort((a,b)=>b[1].createdAt-a[1].createdAt);
