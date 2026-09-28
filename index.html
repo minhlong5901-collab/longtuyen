@@ -197,6 +197,17 @@
   }
   .miss-btn span.lbl{ font-family:'Quicksand'; font-size:.78rem; font-weight:700; margin-top:4px; }
   .miss-btn:active{ transform:scale(.94); }
+  .miss-btn.done{ filter:grayscale(.45); opacity:.8; box-shadow:0 8px 16px -10px rgba(232,138,168,.5); }
+  .penalty-card{ margin-top:18px; background:var(--paper); border:1px solid var(--line); border-radius:18px; padding:14px 16px; text-align:left; box-shadow:var(--shadow); }
+  .penalty-card h3{ margin:0 0 8px; font-size:1rem; font-family:'Quicksand'; font-weight:700; color:var(--plum); }
+  .penalty-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-top:1px dashed var(--line); }
+  .penalty-row:first-child{ border-top:none; }
+  .penalty-row .who{ font-size:.9rem; font-weight:700; }
+  .penalty-row .sub{ font-size:.72rem; color:var(--plum-soft); margin-top:2px; }
+  .penalty-count{ font-family:'Cormorant Garamond',serif; font-size:1.5rem; font-weight:600; color:var(--rose-deep); min-width:28px; text-align:right; }
+  .penalty-count.zero{ color:var(--plum-soft); }
+  .penalty-settle{ border:none; background:var(--plum); color:#fff; border-radius:10px; padding:6px 10px; font-size:.72rem; font-weight:700; white-space:nowrap; }
+  .penalty-note{ font-size:.72rem; color:var(--plum-soft); margin-top:8px; line-height:1.5; }
   .miss-stats{ display:flex; justify-content:center; gap:26px; margin-top:18px; }
   .miss-stat{ text-align:center; }
   .miss-stat b{ display:block; font-size:1.4rem; color:var(--plum); font-family:'Cormorant Garamond'; }
@@ -483,12 +494,17 @@
       </div>
 
       <div class="miss-section">
-        <button class="miss-btn" onclick="pressMiss(event)">
+        <button class="miss-btn" id="miss-btn" onclick="pressMiss(event)">
           💗<span class="lbl" id="miss-btn-label">NHỚ EM</span>
         </button>
         <div class="miss-stats">
           <div class="miss-stat"><b id="stat-mine">0</b><span id="stat-mine-label">Anh đã nhớ</span></div>
           <div class="miss-stat"><b id="stat-theirs">0</b><span id="stat-theirs-label">Em đã nhớ</span></div>
+        </div>
+        <div class="penalty-card">
+          <h3>😤 Lượt phạt quên nhớ</h3>
+          <div id="penalty-body"></div>
+          <div class="penalty-note" id="penalty-note"></div>
         </div>
         <div class="miss-log">
           <h3>Tất cả khoảnh khắc nhớ nhau</h3>
@@ -719,6 +735,13 @@
 const CFG = window.APP_CONFIG;
 let db, currentUser = null, pendingWho = null;
 let diaryData = {}, milestoneData = {}, missData = {}, photoData = {}, notifData = {};
+let penaltyCfg = {}, penaltyPaid = {};
+
+// Ngày tính theo giờ Việt Nam (UTC+7) để app và máy chủ chốt ngày giống nhau
+const VN_OFFSET_MS = 7 * 3600 * 1000;
+function dayKey(ts){ return new Date(ts + VN_OFFSET_MS).toISOString().slice(0,10); }
+function dayLabel(key){ return key.slice(8,10) + '/' + key.slice(5,7); }
+function appBaseUrl(){ return location.origin + location.pathname.replace(/[^\/]*$/, ''); }
 let selectedFrame = 'none', pendingFile = null, pendingFileType = null;
 
 const MOODS = ["🥰","😊","🥲","😴","😤","🤒","🎉","💭"];
@@ -869,7 +892,7 @@ async function sendPushToPartner(title, body){
     const resp = await fetch(cfg.pushRelayUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, body, target: otherOf(currentUser) })
+      body: JSON.stringify({ title, body, target: otherOf(currentUser), url: appBaseUrl() })
     });
     const text = await resp.text();
     let data = {}; try{ data = JSON.parse(text); }catch(e){}
@@ -922,7 +945,7 @@ function renderBell(){
   const list = document.getElementById('bell-list');
   if(entries.length===0){ list.innerHTML = '<div class="empty">Chưa có cập nhật nào cả.</div>'; return; }
   list.innerHTML = entries.map(([,v])=>{
-    const name = CFG.users[v.author] ? CFG.users[v.author].name : '?';
+    const name = v.author==='system' ? 'Hệ thống' : (CFG.users[v.author] ? CFG.users[v.author].name : '?');
     const time = new Date(v.createdAt).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit',year:'numeric'});
     return `<div class="bell-item">
       <div class="ic">${v.type||'🔔'}</div>
@@ -965,18 +988,97 @@ function attachListeners(){
   db.ref('misses').on('value', snap=>{ missData = snap.val()||{}; renderMiss(); });
   db.ref('photos').on('value', snap=>{ photoData = snap.val()||{}; renderPhotos(); });
   db.ref('notifications').on('value', snap=>{ notifData = snap.val()||{}; renderBell(); });
+  db.ref('penaltyPaid').on('value', snap=>{ penaltyPaid = snap.val()||{}; renderPenalty(); });
+  db.ref('penaltyConfig').on('value', snap=>{
+    penaltyCfg = snap.val()||{};
+    if(!penaltyCfg.startDay){
+      // Lần đầu bật tính năng: bắt đầu tính phạt từ NGÀY MAI để công bằng
+      db.ref('penaltyConfig/startDay').transaction(cur => cur || dayKey(Date.now() + 86400000));
+    }
+    renderPenalty();
+  });
+  if(!window.__missTick){ window.__missTick = setInterval(()=>{ renderMiss(); }, 60000); } // qua nửa đêm tự cập nhật
 }
 
 /* =========================================================
    NÚT NHỚ
    ========================================================= */
-function pressMiss(e){
+function hasPressedToday(who){
+  const today = dayKey(Date.now());
+  return Object.values(missData).some(v => v && v.who===who && dayKey(v.ts)===today);
+}
+async function pressMiss(e){
   if(!db) return;
-  const id = db.ref('misses').push().key;
-  db.ref('misses/'+id).set({ who: currentUser, ts: Date.now() });
+  if(hasPressedToday(currentUser)){
+    showToast('Hôm nay bạn đã nhớ rồi, mai nhớ tiếp nhé 💗');
+    return;
+  }
+  // Khoá cố định theo ngày + người: dù bấm nhiều lần/nhiều máy cũng chỉ ghi được 1 lần
+  const key = 'd_' + dayKey(Date.now()) + '_' + currentUser;
+  let committed = false;
+  try{
+    const res = await db.ref('misses/'+key).transaction(cur => cur ? undefined : { who: currentUser, ts: Date.now() });
+    committed = res.committed;
+  }catch(err){ console.error(err); }
+  if(!committed){ showToast('Hôm nay bạn đã nhớ rồi, mai nhớ tiếp nhé 💗'); return; }
   spawnHeart(e);
   showToast('Đã gửi một nỗi nhớ 💗');
   logActivity('💗', '💗 ' + CFG.users[currentUser].name + ' đang nhớ bạn', 'Bấm mở app để nhớ lại nhé');
+}
+function updateMissButton(){
+  const btn = document.getElementById('miss-btn');
+  const lbl = document.getElementById('miss-btn-label');
+  if(!btn || !lbl || !currentUser) return;
+  const done = hasPressedToday(currentUser);
+  btn.classList.toggle('done', done);
+  lbl.textContent = done ? 'HÔM NAY ĐÃ NHỚ ✓' : 'NHỚ ' + CFG.users[otherOf(currentUser)].name.toUpperCase();
+}
+// Số ngày đã quên nhớ (từ ngày bắt đầu tính phạt đến hết ngày hôm qua)
+function missedDaysFor(who){
+  const start = penaltyCfg.startDay;
+  if(!start) return 0;
+  const pressed = new Set();
+  Object.values(missData).forEach(v=>{ if(v && v.who===who && v.ts) pressed.add(dayKey(v.ts)); });
+  const yesterday = dayKey(Date.now() - 86400000);
+  let count = 0, cur = new Date(start + 'T00:00:00Z').getTime();
+  const end = new Date(yesterday + 'T00:00:00Z').getTime();
+  for(let i=0; cur<=end && i<3660; i++, cur+=86400000){
+    if(!pressed.has(new Date(cur).toISOString().slice(0,10))) count++;
+  }
+  return count;
+}
+function renderPenalty(){
+  const body = document.getElementById('penalty-body');
+  const note = document.getElementById('penalty-note');
+  if(!body || !currentUser) return;
+  if(!penaltyCfg.startDay){ body.innerHTML = '<div class="empty" style="padding:8px 0;">Đang thiết lập...</div>'; note.textContent=''; return; }
+  const today = dayKey(Date.now());
+  body.innerHTML = ['nam','nu'].map(who=>{
+    const u = CFG.users[who];
+    const missed = missedDaysFor(who);
+    const paid = Math.min(penaltyPaid[who] || 0, missed);
+    const owed = missed - paid;
+    const pressedToday = hasPressedToday(who);
+    const canSettle = who!==currentUser && owed>0;
+    return `<div class="penalty-row">
+      <div>
+        <div class="who">${u.emoji} ${u.name}</div>
+        <div class="sub">Hôm nay: ${pressedToday ? 'đã nhớ ✓' : 'chưa nhớ'} · quên ${missed} ngày · đã phạt ${paid}</div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px;">
+        ${canSettle ? `<button class="penalty-settle" onclick="settlePenalty('${who}')">Đã phạt 1 lượt</button>` : ''}
+        <div class="penalty-count ${owed===0?'zero':''}">${owed}</div>
+      </div>
+    </div>`;
+  }).join('');
+  note.textContent = 'Tính phạt từ ngày ' + dayLabel(penaltyCfg.startDay) + '. Ai quên bấm nhớ trong ngày sẽ bị ghi 1 lượt phạt lúc nửa đêm; người kia bấm "Đã phạt" sau khi phạt xong.';
+}
+function settlePenalty(who){
+  if(!db || who===currentUser) return;
+  const owed = missedDaysFor(who) - Math.min(penaltyPaid[who]||0, missedDaysFor(who));
+  if(owed<=0) return;
+  db.ref('penaltyPaid/'+who).transaction(cur => (cur||0) + 1);
+  logActivity('😈', '😈 ' + CFG.users[currentUser].name + ' đã phạt bạn 1 lượt', 'Còn ' + (owed-1) + ' lượt phạt chưa thực hiện');
 }
 function spawnHeart(e){
   const h = document.createElement('div');
@@ -988,6 +1090,8 @@ function spawnHeart(e){
   setTimeout(()=>h.remove(), 1200);
 }
 function renderMiss(){
+  updateMissButton();
+  renderPenalty();
   const entries = Object.entries(missData).sort((a,b)=>b[1].ts-a[1].ts);
   const mine = entries.filter(([,v])=>v.who===currentUser).length;
   const theirs = entries.filter(([,v])=>v.who!==currentUser).length;
