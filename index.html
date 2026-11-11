@@ -966,10 +966,12 @@ function openBell(){
 /* =========================================================
    ĐẾM NGÀY YÊU NHAU
    ========================================================= */
-function computeDaysTogether(){
+function getDaysTogether(){
   const start = new Date(CFG.startDate + 'T00:00:00');
-  const now = new Date();
-  const diff = Math.floor((now - start) / 86400000);
+  return Math.max(0, Math.floor((new Date() - start) / 86400000));
+}
+function computeDaysTogether(){
+  const diff = getDaysTogether();
   document.getElementById('days-together').textContent = diff.toLocaleString('vi-VN');
   document.getElementById('since-text').textContent = 'kể từ ' + formatDate(CFG.startDate);
 }
@@ -997,7 +999,7 @@ function attachListeners(){
     }
     renderPenalty();
   });
-  if(!window.__missTick){ window.__missTick = setInterval(()=>{ renderMiss(); }, 60000); } // qua nửa đêm tự cập nhật
+  if(!window.__missTick){ window.__missTick = setInterval(()=>{ computeDaysTogether(); renderMiss(); }, 60000); } // qua nửa đêm tự cập nhật
 }
 
 /* =========================================================
@@ -1047,7 +1049,17 @@ function missedDaysFor(who){
   }
   return count;
 }
+// Số lượt nhớ của mỗi người = số ngày yêu nhau − số ngày quên bấm nhớ
+function updateMissStats(){
+  if(!currentUser) return;
+  const total = getDaysTogether();
+  const mine = Math.max(0, total - missedDaysFor(currentUser));
+  const theirs = Math.max(0, total - missedDaysFor(otherOf(currentUser)));
+  document.getElementById('stat-mine').textContent = mine.toLocaleString('vi-VN');
+  document.getElementById('stat-theirs').textContent = theirs.toLocaleString('vi-VN');
+}
 function renderPenalty(){
+  updateMissStats();
   const body = document.getElementById('penalty-body');
   const note = document.getElementById('penalty-note');
   if(!body || !currentUser) return;
@@ -1093,10 +1105,6 @@ function renderMiss(){
   updateMissButton();
   renderPenalty();
   const entries = Object.entries(missData).sort((a,b)=>b[1].ts-a[1].ts);
-  const mine = entries.filter(([,v])=>v.who===currentUser).length;
-  const theirs = entries.filter(([,v])=>v.who!==currentUser).length;
-  document.getElementById('stat-mine').textContent = mine;
-  document.getElementById('stat-theirs').textContent = theirs;
   const list = document.getElementById('miss-list');
   if(entries.length===0){ list.innerHTML = '<div class="empty">Chưa có ai nhớ ai cả, bấm nút phía trên đi nào 💗</div>'; return; }
 
