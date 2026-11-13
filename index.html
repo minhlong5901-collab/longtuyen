@@ -185,6 +185,24 @@
   .hero-days{ font-size:3.4rem; font-weight:600; color:var(--rose-deep); line-height:1; position:relative; z-index:1;}
   .hero-label{ margin-top:4px; color:var(--plum-soft); font-size:.92rem; position:relative; z-index:1;}
   .hero-since{ margin-top:10px; font-size:.82rem; color:var(--plum-soft); position:relative; z-index:1;}
+  .rank-badge{
+    position:relative; z-index:1; margin-top:14px; border:none; color:#fff; padding:7px 14px; border-radius:20px;
+    font-weight:700; font-size:.9rem; display:inline-flex; align-items:center; gap:6px;
+    box-shadow:0 6px 14px -6px rgba(91,58,75,.45); text-shadow:0 1px 2px rgba(0,0,0,.25);
+  }
+  .rank-badge #rank-emoji{ font-size:1.05rem; }
+  .rank-chev{ opacity:.8; font-size:1rem; line-height:1; }
+  .rank-progress{ position:relative; z-index:1; height:8px; background:rgba(91,58,75,.12); border-radius:6px; margin:12px auto 0; max-width:240px; overflow:hidden; }
+  .rank-progress-bar{ height:100%; border-radius:6px; transition:width .6s ease; }
+  .rank-next{ position:relative; z-index:1; margin-top:6px; font-size:.76rem; color:var(--plum-soft); }
+  .rank-row{ display:flex; align-items:center; gap:12px; padding:10px 6px; border-bottom:1px dashed var(--line); }
+  .rank-row.cur{ background:var(--blush); border-radius:12px; border-bottom-color:transparent; }
+  .rank-row.locked{ opacity:.55; }
+  .rank-row.locked .rank-ic{ filter:grayscale(.8); }
+  .rank-ic{ width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:1.3rem; box-shadow:0 3px 8px -3px rgba(91,58,75,.4); flex-shrink:0; }
+  .rank-info b{ display:block; font-size:.92rem; }
+  .rank-info span{ font-size:.74rem; color:var(--plum-soft); }
+  .rank-state{ margin-left:auto; font-size:.72rem; font-weight:700; color:var(--plum-soft); white-space:nowrap; text-align:right; }
 
   /* Miss button */
   .miss-section{ margin-top:22px; text-align:center; }
@@ -198,16 +216,6 @@
   .miss-btn span.lbl{ font-family:'Quicksand'; font-size:.78rem; font-weight:700; margin-top:4px; }
   .miss-btn:active{ transform:scale(.94); }
   .miss-btn.done{ filter:grayscale(.45); opacity:.8; box-shadow:0 8px 16px -10px rgba(232,138,168,.5); }
-  .penalty-card{ margin-top:18px; background:var(--paper); border:1px solid var(--line); border-radius:18px; padding:14px 16px; text-align:left; box-shadow:var(--shadow); }
-  .penalty-card h3{ margin:0 0 8px; font-size:1rem; font-family:'Quicksand'; font-weight:700; color:var(--plum); }
-  .penalty-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 0; border-top:1px dashed var(--line); }
-  .penalty-row:first-child{ border-top:none; }
-  .penalty-row .who{ font-size:.9rem; font-weight:700; }
-  .penalty-row .sub{ font-size:.72rem; color:var(--plum-soft); margin-top:2px; }
-  .penalty-count{ font-family:'Cormorant Garamond',serif; font-size:1.5rem; font-weight:600; color:var(--rose-deep); min-width:28px; text-align:right; }
-  .penalty-count.zero{ color:var(--plum-soft); }
-  .penalty-settle{ border:none; background:var(--plum); color:#fff; border-radius:10px; padding:6px 10px; font-size:.72rem; font-weight:700; white-space:nowrap; }
-  .penalty-note{ font-size:.72rem; color:var(--plum-soft); margin-top:8px; line-height:1.5; }
   .miss-stats{ display:flex; justify-content:center; gap:26px; margin-top:18px; }
   .miss-stat{ text-align:center; }
   .miss-stat b{ display:block; font-size:1.4rem; color:var(--plum); font-family:'Cormorant Garamond'; }
@@ -475,6 +483,11 @@
         <div class="hero-days" id="days-together">0</div>
         <div class="hero-label">ngày mình đã bên nhau</div>
         <div class="hero-since" id="since-text"></div>
+        <button type="button" class="rank-badge" id="rank-badge" onclick="openRankModal()">
+          <span id="rank-emoji">🌱</span><span id="rank-name">Hạt giống</span><span class="rank-chev">›</span>
+        </button>
+        <div class="rank-progress"><div class="rank-progress-bar" id="rank-progress-bar"></div></div>
+        <div class="rank-next" id="rank-next"></div>
       </div>
 
       <div class="banner" id="upcoming-banner" style="display:none;">
@@ -500,11 +513,6 @@
         <div class="miss-stats">
           <div class="miss-stat"><b id="stat-mine">0</b><span id="stat-mine-label">Anh đã nhớ</span></div>
           <div class="miss-stat"><b id="stat-theirs">0</b><span id="stat-theirs-label">Em đã nhớ</span></div>
-        </div>
-        <div class="penalty-card">
-          <h3>😤 Lượt phạt quên nhớ</h3>
-          <div id="penalty-body"></div>
-          <div class="penalty-note" id="penalty-note"></div>
         </div>
         <div class="miss-log">
           <h3>Tất cả khoảnh khắc nhớ nhau</h3>
@@ -674,6 +682,16 @@
   </div>
 </div>
 
+<div class="modal-bg" id="rank-modal">
+  <div class="modal">
+    <h3>🏅 Hạng tình yêu</h3>
+    <div id="rank-list" style="max-height:60vh; overflow-y:auto;"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('rank-modal')">Đóng</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-bg" id="bell-modal">
   <div class="modal">
     <h3>🔔 Lịch sử cập nhật</h3>
@@ -735,7 +753,7 @@
 const CFG = window.APP_CONFIG;
 let db, currentUser = null, pendingWho = null;
 let diaryData = {}, milestoneData = {}, missData = {}, photoData = {}, notifData = {};
-let penaltyCfg = {}, penaltyPaid = {};
+let missCfg = {}; // ngày bắt đầu đếm ngày quên nhớ (lưu ở nút Firebase 'penaltyConfig' — giữ tên cũ để không mất dữ liệu)
 
 // Ngày tính theo giờ Việt Nam (UTC+7) để app và máy chủ chốt ngày giống nhau
 const VN_OFFSET_MS = 7 * 3600 * 1000;
@@ -970,10 +988,71 @@ function getDaysTogether(){
   const start = new Date(CFG.startDate + 'T00:00:00');
   return Math.max(0, Math.floor((new Date() - start) / 86400000));
 }
+// ---- HẠNG TÌNH YÊU: yêu nhau càng lâu, hạng càng cao ----
+const RANKS = [
+  { days:0,    emoji:'🌱', name:'Hạt giống',        note:'Ngày đầu bên nhau', c1:'#A8D5A2', c2:'#5FAE66' },
+  { days:7,    emoji:'🌿', name:'Mầm xanh',         note:'1 tuần',            c1:'#8FD0A0', c2:'#3F9E72' },
+  { days:30,   emoji:'🌷', name:'Nụ hồng',          note:'1 tháng',           c1:'#F7A8C0', c2:'#E5739B' },
+  { days:60,   emoji:'🌸', name:'Hoa nở',           note:'2 tháng',           c1:'#F59BB6', c2:'#DF5079' },
+  { days:100,  emoji:'💞', name:'Đôi tri kỷ',       note:'100 ngày',          c1:'#F08BAA', c2:'#D13F6B' },
+  { days:180,  emoji:'🌙', name:'Nửa năm bên nhau', note:'6 tháng',           c1:'#B79CE8', c2:'#7C5CC4' },
+  { days:365,  emoji:'💍', name:'Tròn một năm',     note:'1 năm',             c1:'#F2C46B', c2:'#CF8F14' },
+  { days:545,  emoji:'🥂', name:'Một năm rưỡi',     note:'1,5 năm',           c1:'#F5B97A', c2:'#D9772B' },
+  { days:730,  emoji:'🌹', name:'Hai mùa xuân',     note:'2 năm',             c1:'#F0788F', c2:'#C21F4B' },
+  { days:1095, emoji:'💎', name:'Kim cương',        note:'3 năm',             c1:'#8FD3F4', c2:'#3B8FD9' },
+  { days:1825, emoji:'👑', name:'Son sắt',          note:'5 năm',             c1:'#F4CF5C', c2:'#C98F0A' },
+  { days:3650, emoji:'🏆', name:'Huyền thoại',      note:'10 năm',            c1:'#E9B949', c2:'#9B5BD6' }
+];
+function rankIndexFor(days){
+  let idx = 0;
+  for(let i=0;i<RANKS.length;i++){ if(days >= RANKS[i].days) idx = i; }
+  return idx;
+}
+function renderRank(){
+  const badge = document.getElementById('rank-badge');
+  if(!badge) return;
+  const days = getDaysTogether();
+  const idx = rankIndexFor(days);
+  const r = RANKS[idx], next = RANKS[idx+1];
+  badge.style.background = 'linear-gradient(135deg,' + r.c1 + ',' + r.c2 + ')';
+  document.getElementById('rank-emoji').textContent = r.emoji;
+  document.getElementById('rank-name').textContent = r.name;
+  const bar = document.getElementById('rank-progress-bar');
+  bar.style.background = 'linear-gradient(90deg,' + r.c1 + ',' + r.c2 + ')';
+  if(next){
+    const pct = Math.max(4, Math.min(100, (days - r.days) / (next.days - r.days) * 100));
+    bar.style.width = pct + '%';
+    document.getElementById('rank-next').textContent = 'Còn ' + (next.days - days) + ' ngày nữa lên hạng ' + next.emoji + ' ' + next.name;
+  }else{
+    bar.style.width = '100%';
+    document.getElementById('rank-next').textContent = 'Hai bạn đã đạt hạng cao nhất 🎉';
+  }
+  // Lên hạng mới thì chúc mừng (lần đầu mở chỉ ghi nhớ, không chúc mừng)
+  if(currentUser){
+    const key = 'love_app_rank_seen_' + currentUser;
+    const seen = localStorage.getItem(key);
+    if(seen === null){ localStorage.setItem(key, String(idx)); }
+    else if(idx > Number(seen)){ localStorage.setItem(key, String(idx)); showToast('🎉 Lên hạng ' + r.emoji + ' ' + r.name + '!'); }
+  }
+}
+function openRankModal(){
+  const days = getDaysTogether();
+  const cur = rankIndexFor(days);
+  document.getElementById('rank-list').innerHTML = RANKS.map((r,i)=>{
+    const state = i===cur ? 'Hiện tại' : (i<cur ? '✓' : '🔒 còn ' + (r.days - days) + ' ngày');
+    return `<div class="rank-row ${i===cur?'cur':''} ${i>cur?'locked':''}">
+      <div class="rank-ic" style="background:linear-gradient(135deg,${r.c1},${r.c2})">${r.emoji}</div>
+      <div class="rank-info"><b>${r.name}</b><span>${r.note} · từ ngày ${r.days}</span></div>
+      <div class="rank-state">${state}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('rank-modal').classList.add('show');
+}
 function computeDaysTogether(){
   const diff = getDaysTogether();
   document.getElementById('days-together').textContent = diff.toLocaleString('vi-VN');
   document.getElementById('since-text').textContent = 'kể từ ' + formatDate(CFG.startDate);
+  renderRank();
 }
 function formatDate(d){
   const dt = new Date(d + (d.length===10 && d.indexOf('T')<0 ? 'T00:00:00':''));
@@ -990,14 +1069,13 @@ function attachListeners(){
   db.ref('misses').on('value', snap=>{ missData = snap.val()||{}; renderMiss(); });
   db.ref('photos').on('value', snap=>{ photoData = snap.val()||{}; renderPhotos(); });
   db.ref('notifications').on('value', snap=>{ notifData = snap.val()||{}; renderBell(); });
-  db.ref('penaltyPaid').on('value', snap=>{ penaltyPaid = snap.val()||{}; renderPenalty(); });
   db.ref('penaltyConfig').on('value', snap=>{
-    penaltyCfg = snap.val()||{};
-    if(!penaltyCfg.startDay){
-      // Lần đầu bật tính năng: bắt đầu tính phạt từ NGÀY MAI để công bằng
+    missCfg = snap.val()||{};
+    if(!missCfg.startDay){
+      // Lần đầu bật tính năng: bắt đầu đếm ngày quên nhớ từ NGÀY MAI
       db.ref('penaltyConfig/startDay').transaction(cur => cur || dayKey(Date.now() + 86400000));
     }
-    renderPenalty();
+    updateMissStats();
   });
   if(!window.__missTick){ window.__missTick = setInterval(()=>{ computeDaysTogether(); renderMiss(); }, 60000); } // qua nửa đêm tự cập nhật
 }
@@ -1035,9 +1113,9 @@ function updateMissButton(){
   btn.classList.toggle('done', done);
   lbl.textContent = done ? 'HÔM NAY ĐÃ NHỚ ✓' : 'NHỚ ' + CFG.users[otherOf(currentUser)].name.toUpperCase();
 }
-// Số ngày đã quên nhớ (từ ngày bắt đầu tính phạt đến hết ngày hôm qua)
+// Số ngày đã quên nhớ (từ ngày bắt đầu đếm đến hết ngày hôm qua)
 function missedDaysFor(who){
-  const start = penaltyCfg.startDay;
+  const start = missCfg.startDay;
   if(!start) return 0;
   const pressed = new Set();
   Object.values(missData).forEach(v=>{ if(v && v.who===who && v.ts) pressed.add(dayKey(v.ts)); });
@@ -1058,40 +1136,6 @@ function updateMissStats(){
   document.getElementById('stat-mine').textContent = mine.toLocaleString('vi-VN');
   document.getElementById('stat-theirs').textContent = theirs.toLocaleString('vi-VN');
 }
-function renderPenalty(){
-  updateMissStats();
-  const body = document.getElementById('penalty-body');
-  const note = document.getElementById('penalty-note');
-  if(!body || !currentUser) return;
-  if(!penaltyCfg.startDay){ body.innerHTML = '<div class="empty" style="padding:8px 0;">Đang thiết lập...</div>'; note.textContent=''; return; }
-  const today = dayKey(Date.now());
-  body.innerHTML = ['nam','nu'].map(who=>{
-    const u = CFG.users[who];
-    const missed = missedDaysFor(who);
-    const paid = Math.min(penaltyPaid[who] || 0, missed);
-    const owed = missed - paid;
-    const pressedToday = hasPressedToday(who);
-    const canSettle = who!==currentUser && owed>0;
-    return `<div class="penalty-row">
-      <div>
-        <div class="who">${u.emoji} ${u.name}</div>
-        <div class="sub">Hôm nay: ${pressedToday ? 'đã nhớ ✓' : 'chưa nhớ'} · quên ${missed} ngày · đã phạt ${paid}</div>
-      </div>
-      <div style="display:flex; align-items:center; gap:10px;">
-        ${canSettle ? `<button class="penalty-settle" onclick="settlePenalty('${who}')">Đã phạt 1 lượt</button>` : ''}
-        <div class="penalty-count ${owed===0?'zero':''}">${owed}</div>
-      </div>
-    </div>`;
-  }).join('');
-  note.textContent = 'Tính phạt từ ngày ' + dayLabel(penaltyCfg.startDay) + '. Ai quên bấm nhớ trong ngày sẽ bị ghi 1 lượt phạt lúc nửa đêm; người kia bấm "Đã phạt" sau khi phạt xong.';
-}
-function settlePenalty(who){
-  if(!db || who===currentUser) return;
-  const owed = missedDaysFor(who) - Math.min(penaltyPaid[who]||0, missedDaysFor(who));
-  if(owed<=0) return;
-  db.ref('penaltyPaid/'+who).transaction(cur => (cur||0) + 1);
-  logActivity('😈', '😈 ' + CFG.users[currentUser].name + ' đã phạt bạn 1 lượt', 'Còn ' + (owed-1) + ' lượt phạt chưa thực hiện');
-}
 function spawnHeart(e){
   const h = document.createElement('div');
   h.className='heart-pop'; h.textContent='💗';
@@ -1103,7 +1147,7 @@ function spawnHeart(e){
 }
 function renderMiss(){
   updateMissButton();
-  renderPenalty();
+  updateMissStats();
   const entries = Object.entries(missData).sort((a,b)=>b[1].ts-a[1].ts);
   const list = document.getElementById('miss-list');
   if(entries.length===0){ list.innerHTML = '<div class="empty">Chưa có ai nhớ ai cả, bấm nút phía trên đi nào 💗</div>'; return; }
